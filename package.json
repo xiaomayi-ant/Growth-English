@@ -1,0 +1,29 @@
+{
+  "name": "en-play",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.7.0",
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "scripts": {
+    "dev": "concurrently -n server,web -c cyan,green \"pnpm dev:server\" \"pnpm dev:web\"",
+    "dev:server": "pnpm --filter @en-play/server dev",
+    "dev:web": "pnpm --filter @en-play/web dev",
+    "build": "pnpm --filter @en-play/web build && pnpm --filter @en-play/server build",
+    "start": "pnpm --filter @en-play/server start",
+    "typecheck": "pnpm -r typecheck",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "biome check .",
+    "format": "biome format --write ."
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.3.11",
+    "@types/node": "^24.10.1",
+    "concurrently": "^9.2.1",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.16"
+  }
+}

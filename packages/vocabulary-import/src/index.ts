@@ -1,0 +1,141 @@
+import { readdir, readFile } from "node:fs/promises";
+import path from "node:path";
+import type { ImportIssue, SourceEntry } from "@en-play/core";
+
+const FILE_PATTERN = /^english-words(?:-(\d{3}))?\.md$/;
+const BREAK_PATTERN = /<br\s*\/?>/i;
+
+export interface ParsedVocabulary {
+  entries: SourceEntry[];
+  issues: ImportIssue[];
+  files: number;
+}
+
+interface VocabularyFile {
+  fileIndex: number;
+  sourcePath: string;
+}
+
+function splitTableCells(line: string): string[] {
+  const trimmed = line.trim().replace(/^\|/, "").replace(/\|$/, "");
+  const cells: string[] = [];
+  let current = "";
+  let escaped = false;
+
+  for (const character of trimmed) {
+    if (character === "\\" && !escaped) {
+      escaped = true;
+      current += character;
+      continue;
+    }
+    if (character === "|" && !escaped) {
+      cells.push(current.trim());
+      current = "";
+      continue;
+    }
+    current += character;
+    escaped = false;
+  }
+  cells.push(current.trim());
+  return cells;
+}
+
+function parseCell(cell: string): Pick<SourceEntry, "word" | "meaning" | "phonetic"> | null {
+  if (!cell.trim()) return null;
+  const parts = cell
+    .replaceAll("\\|", "|")
+    .split(BREAK_PATTERN)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  const word = parts[0];
+  if (!word) return null;
+  return {
+    word,
+    meaning: parts[1] ?? "",
+    phonetic: parts.slice(2).join(" / ") || "-",
+  };
+}
+
+function isHeader(cells: string[]): boolean {
+  return (
+    cells.every((cell) => /^\s*:?-{3,}:?\s*$/.test(cell)) ||
+    cells.every((cell) => /^\d+$/.test(cell.trim()))
+  );
+}
+
+export function parseVocabularyMarkdown(
+  sourcePath: string,
+  fileIndex: number,
+  content: string,
+): ParsedVocabulary {
+  const entries: SourceEntry[] = [];
+  const issues: ImportIssue[] = [];
+  let rowIndex = 0;
+
+  for (const [lineOffset, line] of content.split(/\r?\n/).entries()) {
+    if (!line.trim().startsWith("|")) continue;
+    const cells = splitTableCells(line);
+    if (isHeader(cells)) continue;
+    rowIndex += 1;
+
+    for (const [columnOffset, cell] of cells.entries()) {
+      const parsed = parseCell(cell);
+      if (!parsed) continue;
+      if (!cell.match(BREAK_PATTERN)) {
+        issues.push({
+          sourcePath,
+          lineNumber: lineOffset + 1,
+          message: `Cell ${columnOffset + 1} does not contain <br> separators`,
+        });
+      }
+      const columnIndex = columnOffset + 1;
+      entries.push({
+        id: `f${String(fileIndex).padStart(3, "0")}-r${String(rowIndex).padStart(3, "0")}-c${String(columnIndex).padStart(2, "0")}`,
+        fileIndex,
+        rowIndex,
+        columnIndex,
+        sourcePath,
+        ...parsed,
+        sourceOrder: fileIndex * 100_000 + rowIndex * 10 + columnIndex,
+      });
+    }
+  }
+
+  return { entries, issues, files: 1 };
+}
+
+export async function discoverVocabularyFiles(directory: string): Promise<VocabularyFile[]> {
+  const names = await readdir(directory);
+  return names
+    .flatMap((name) => {
+      const match = FILE_PATTERN.exec(name);
+      if (!match) return [];
+      return [
+        {
+          fileIndex: match[1] ? Number(match[1]) : 1,
+          sourcePath: path.join(directory, name),
+        },
+      ];
+    })
+    .sort((left, right) => left.fileIndex - right.fileIndex);
+}
+
+export async function loadVocabulary(directory: string): Promise<ParsedVocabulary> {
+  const files = await discoverVocabularyFiles(directory);
+  const parsed = await Promise.all(
+    files.map(async (file) =>
+      parseVocabularyMarkdown(
+        file.sourcePath,
+        file.fileIndex,
+        await readFile(file.sourcePath, "utf8"),
+      ),
+    ),
+  );
+  return {
+    files: files.length,
+    entries: parsed
+      .flatMap((result) => result.entries)
+      .sort((a, b) => a.sourceOrder - b.sourceOrder),
+    issues: parsed.flatMap((result) => result.issues),
+  };
+}

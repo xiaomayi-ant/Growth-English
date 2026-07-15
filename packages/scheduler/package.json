@@ -1,0 +1,16 @@
+{
+  "name": "@en-play/scheduler",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@en-play/core": "workspace:*",
+    "@en-play/database": "workspace:*",
+    "@en-play/evaluation": "workspace:*",
+    "date-fns": "^4.1.0"
+  }
+}
