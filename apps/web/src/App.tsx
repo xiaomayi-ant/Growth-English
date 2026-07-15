@@ -10,7 +10,6 @@ import {
   LoaderCircle,
   RefreshCw,
   RotateCcw,
-  Save,
   TriangleAlert,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -70,6 +69,11 @@ function WordExercise({ item, busy, onSubmit }: WordExerciseProps) {
   const [revealed, setRevealed] = useState(item.completedAt !== null);
   const completed = item.completedAt !== null;
 
+  async function handleRatingSelect(nextRating: Rating): Promise<void> {
+    setRating(nextRating);
+    await onSubmit(answer, nextRating);
+  }
+
   return (
     <article className={`word-card ${completed ? "is-complete" : ""}`}>
       <div className="word-card-header">
@@ -119,32 +123,35 @@ function WordExercise({ item, busy, onSubmit }: WordExerciseProps) {
             className={`rating-button rating-${option.value} ${rating === option.value ? "is-selected" : ""}`}
             disabled={completed || busy}
             aria-pressed={rating === option.value}
-            onClick={() => setRating(option.value)}
+            onClick={() => void handleRatingSelect(option.value)}
           >
             {option.label}
           </button>
         ))}
       </fieldset>
 
+      {item.feedback ? (
+        <div className="feedback-panel">
+          <strong>批改反馈</strong>
+          <span>{item.feedback}</span>
+        </div>
+      ) : null}
+
       <div className="word-card-footer">
-        <span>{completed ? "已记录" : item.dueOn ? `到期 ${item.dueOn}` : "首次学习"}</span>
-        {!completed ? (
-          <button
-            type="button"
-            className="primary-button compact"
-            disabled={busy || rating === null}
-            onClick={() => rating && onSubmit(answer, rating)}
-          >
-            {busy ? (
-              <LoaderCircle className="spin" aria-hidden="true" />
-            ) : (
-              <Save aria-hidden="true" />
-            )}
-            记录
-          </button>
-        ) : (
+        <span>
+          {busy
+            ? "保存中"
+            : completed
+              ? "已记录"
+              : item.dueOn
+                ? `到期 ${item.dueOn}`
+                : "选择评分后自动记录"}
+        </span>
+        {busy ? (
+          <LoaderCircle className="spin complete-icon" aria-hidden="true" />
+        ) : completed ? (
           <Check aria-hidden="true" className="complete-icon" />
-        )}
+        ) : null}
       </div>
     </article>
   );
@@ -469,7 +476,10 @@ export default function App() {
                 const response = await api.createNewSession();
                 setNewSession(response.session);
               }}
-              onSessionChange={setNewSession}
+              onSessionChange={(session) => {
+                setNewSession(session);
+                if (session.status === "completed") void refresh();
+              }}
               onComplete={
                 newSession
                   ? async () => {

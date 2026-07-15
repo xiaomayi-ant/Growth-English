@@ -74,4 +74,33 @@ describe("API", () => {
     });
     expect(response.json().session).toBeNull();
   });
+
+  it("auto evaluates items and completes new learning after the last rating", async () => {
+    const created = await app.inject({
+      method: "POST",
+      url: "/api/sessions/new/today",
+      payload: { date: "2026-07-06" },
+    });
+    const session = created.json().session;
+
+    let latest = session;
+    for (const item of session.items) {
+      const response = await app.inject({
+        method: "POST",
+        url: `/api/sessions/${encodeURIComponent(session.id)}/items/${encodeURIComponent(
+          item.sourceEntry.id,
+        )}`,
+        payload: { answer: item.sourceEntry.meaning, rating: "good" },
+      });
+      latest = response.json().session;
+    }
+
+    expect(latest.status).toBe("completed");
+    expect(
+      latest.items.every((item: { feedback: string | null }) =>
+        item.feedback?.includes("自动批改"),
+      ),
+    ).toBe(true);
+    expect(app.enPlayDatabase.getReviewQueue("2026-07-07").dueToday).toHaveLength(6);
+  });
 });

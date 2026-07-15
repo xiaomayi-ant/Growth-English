@@ -1,11 +1,25 @@
 import { isWeekend, type Rating, type StudySession } from "@en-play/core";
 import type { EnPlayDatabase } from "@en-play/database";
-import type { ContentGenerator } from "@en-play/evaluation";
+import type { AnswerEvaluator, ContentGenerator } from "@en-play/evaluation";
+
+const ratingLabels: Record<Rating, string> = {
+  again: "忘记",
+  hard: "模糊",
+  good: "掌握",
+  easy: "熟练",
+};
+
+function formatEvaluationFeedback(
+  result: Awaited<ReturnType<AnswerEvaluator["evaluateMeaning"]>>,
+): string {
+  return `自动批改：${result.feedback} 建议：${ratingLabels[result.suggestedRating]}，得分：${result.score}/100`;
+}
 
 export class StudyService {
   constructor(
     private readonly database: EnPlayDatabase,
     private readonly contentGenerator: ContentGenerator,
+    private readonly answerEvaluator: AnswerEvaluator,
     private readonly newWordsPerDay: number,
     private readonly reviewLimit: number,
   ) {}
@@ -38,14 +52,32 @@ export class StudyService {
     return this.database.createReviewSession(date, this.reviewLimit);
   }
 
-  submitItem(
+  async submitItem(
     sessionId: string,
     sourceEntryId: string,
     answer: string,
     rating: Rating,
     feedback = "",
-  ): StudySession {
-    return this.database.submitSessionItem(sessionId, sourceEntryId, answer, rating, feedback);
+  ): Promise<StudySession> {
+    const entry = this.database.getSourceEntry(sourceEntryId);
+    if (!entry) throw new Error("Source entry not found");
+    const evaluation = await this.answerEvaluator.evaluateMeaning(entry, answer);
+    const resolvedFeedback = feedback.trim() || formatEvaluationFeedback(evaluation);
+    const session = this.database.submitSessionItem(
+      sessionId,
+      sourceEntryId,
+      answer,
+      rating,
+      resolvedFeedback,
+    );
+    if (
+      session.type === "new_learning" &&
+      session.status !== "completed" &&
+      session.items.every((item) => item.completedAt !== null)
+    ) {
+      return this.database.completeNewSession(session.id);
+    }
+    return session;
   }
 
   completeNewLearningSession(sessionId: string): StudySession {

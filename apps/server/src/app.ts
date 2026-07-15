@@ -3,7 +3,12 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { type AppConfig, todayInTimeZone } from "@en-play/core";
 import { EnPlayDatabase } from "@en-play/database";
-import { type ContentGenerator, DeterministicContentGenerator } from "@en-play/evaluation";
+import {
+  type AnswerEvaluator,
+  type ContentGenerator,
+  DeterministicAnswerEvaluator,
+  DeterministicContentGenerator,
+} from "@en-play/evaluation";
 import { writeDailyReport, writeReviewQueue } from "@en-play/reporting";
 import { StudyService } from "@en-play/scheduler";
 import { loadVocabulary } from "@en-play/vocabulary-import";
@@ -57,6 +62,7 @@ export interface EnPlayApp extends FastifyInstance {
 export async function buildApp(
   config: AppConfig,
   contentGenerator: ContentGenerator = new DeterministicContentGenerator(),
+  answerEvaluator: AnswerEvaluator = new DeterministicAnswerEvaluator(),
 ): Promise<EnPlayApp> {
   const app = Fastify({ logger: true }) as unknown as EnPlayApp;
   const database = await EnPlayDatabase.open(config.databasePath);
@@ -64,6 +70,7 @@ export async function buildApp(
   const studyService = new StudyService(
     database,
     contentGenerator,
+    answerEvaluator,
     config.newWordsPerDay,
     config.reviewLimit,
   );
@@ -176,7 +183,7 @@ export async function buildApp(
       .object({ sessionId: z.string().min(1), sourceEntryId: z.string().min(1) })
       .parse(request.params);
     const body = itemBodySchema.parse(request.body);
-    const session = studyService.submitItem(
+    const session = await studyService.submitItem(
       parameters.sessionId,
       parameters.sourceEntryId,
       body.answer,

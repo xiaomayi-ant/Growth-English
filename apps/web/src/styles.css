@@ -570,6 +570,26 @@ button:disabled {
   font-size: 12px;
 }
 
+.feedback-panel {
+  display: grid;
+  gap: 4px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-left: 3px solid var(--green);
+  color: #234c35;
+  background: var(--green-soft);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.feedback-panel strong {
+  font-size: 11px;
+}
+
+.feedback-panel span {
+  color: #385a46;
+}
+
 .rating-row {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
