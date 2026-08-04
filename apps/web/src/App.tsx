@@ -1,4 +1,4 @@
-import type { Rating, ReviewQueue, SessionItem, StudySession } from "@en-play/core";
+import type { Rating, ReviewQueue, SessionItem, SessionStatus, StudySession } from "@en-play/core";
 import {
   BookOpen,
   Check,
@@ -23,6 +23,13 @@ const ratingOptions: Array<{ value: Rating; label: string }> = [
   { value: "good", label: "掌握" },
   { value: "easy", label: "熟练" },
 ];
+
+const sessionStatusLabels: Record<SessionStatus, string> = {
+  planned: "待开始",
+  active: "进行中",
+  completed: "已完成",
+  abandoned: "已放弃",
+};
 
 function EmptyState({ title, detail }: { title: string; detail: string }) {
   return (
@@ -83,7 +90,6 @@ function WordExercise({ item, busy, onSubmit }: WordExerciseProps) {
         </div>
         <div className="word-meta">
           {item.roundNumber ? <span>D{item.roundNumber}</span> : <span>NEW</span>}
-          <span>{item.sourceEntry.id}</span>
         </div>
       </div>
 
@@ -315,7 +321,9 @@ function HistoryView({ sessions, loading }: { sessions: StudySession[]; loading:
             <strong>{session.type === "new_learning" ? "新词学习" : "到期复习"}</strong>
             <span>{session.date}</span>
           </div>
-          <span className={`status-pill status-${session.status}`}>{session.status}</span>
+          <span className={`status-pill status-${session.status}`}>
+            {sessionStatusLabels[session.status]}
+          </span>
           <strong>{session.items.length} 词</strong>
         </article>
       ))}
