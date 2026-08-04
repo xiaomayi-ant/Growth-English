@@ -2,13 +2,17 @@
 
 ## 0. 当前进度快照
 
-更新时间：2026-07-15
+更新时间：2026-08-04
 
 - MVP 纵向链路已完成：词库导入、SQLite 状态、固定复习轮次、本地 API、React 前端、Obsidian 入口和 Markdown 快照。
 - 真实词库已导入：`english-words.md` 150 个词条，`english-words-002.md` 110 个词条，共 260 个词条。
 - 已创建 2026-07-15 的新词会话，选中 6 个词；该会话尚未完成，因此尚未生成后续复习轮次。
-- 已验证命令：`pnpm test`、`pnpm typecheck`、`pnpm lint`、`pnpm build`。
-- 未完成重点：真实语义分组、自然短文生成、开放式答案评测、工作日自动化、复习上限和运行时间等产品参数。
+- 前端 UI 已做一轮规范修复：状态文案中文化、移除内部 ID 展示、修复 fieldset 边距、字体栈补 CJK 回退。
+- 新增 `apps/desktop`（Electron 43 壳）：Fastify 服务端以 esbuild 单文件 bundle 在 Electron 主进程内运行，BrowserWindow 加载 loopback 地址；`node:sqlite` 在 Electron 内置 Node 22 中直接可用，无需 flag 和原生模块重编译。
+- 桌面版数据库位于 `~/Library/Application Support/En Play/en-play.sqlite3`；首次启动自动迁移旧 `data/en-play.sqlite3`（含 `-wal`/`-shm`，WAL 不完整复制的坑已修复并验证 260 词条完整迁移）。
+- 打包链路已通：`pnpm release` 一条命令产出未签名 dmg（arm64/x86_64）；`.github/workflows/release.yml` 支持推 `v*` tag 自动构建并上传到 GitHub Releases 草稿。
+- 已验证命令：`pnpm test`、`pnpm typecheck`、`pnpm lint`、`pnpm build`、`pnpm release`。
+- 未完成重点：真实语义分组、自然短文生成、开放式答案评测、工作日自动化、复习上限和运行时间等产品参数；桌面端待办（苹果签名公证、设置页、自定义图标、自动更新）。
 
 ## 1. 开发原则
 

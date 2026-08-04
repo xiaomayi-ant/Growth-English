@@ -1,0 +1,26 @@
+{
+  "name": "@en-play/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "En Play desktop app (Electron shell)",
+  "main": "dist/main.cjs",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/xiaomayi-ant/GrowthEnglish.git"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "dev": "node scripts/build.mjs && electron .",
+    "pack": "electron-builder --mac dmg --dir",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@en-play/core": "workspace:*"
+  },
+  "devDependencies": {
+    "electron": "^43.2.0",
+    "electron-builder": "^26.15.3",
+    "esbuild": "^0.28.1"
+  }
+}

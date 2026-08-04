@@ -18,6 +18,7 @@ yarn-error.log*
 dist/
 apps/*/dist/
 packages/*/dist/
+apps/desktop/release/
 
 # Runtime data
 data/*

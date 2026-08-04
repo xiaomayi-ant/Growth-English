@@ -102,7 +102,19 @@ Obsidian 使用受控的网页嵌入方式加载该地址。相同界面也可�
 - SQLite 和后台服务可以保持清晰边界。
 - 学习流程稳定后，仍可把前端封装为 Obsidian 插件。
 
-### 4.5 Codex 负责生成与语义评测，不负责保存状态
+### 4.5 Electron 桌面壳
+
+`apps/desktop` 把同一套前后端封装为 macOS 桌面应用，不改变任何业务代码：
+
+1. esbuild 把 Fastify 服务端（含全部 workspace 包）打成单文件 CJS bundle，在 Electron 主进程内监听 `127.0.0.1` 的空闲端口。
+2. 前端构建产物作为 `extraResources` 随包携带，由 `@fastify/static` 托管；`BrowserWindow` 加载 loopback 地址（前端 API 全部走相对路径，天然适配）。
+3. 数据库位于系统用户目录 `~/Library/Application Support/En Play/en-play.sqlite3`；首次启动把旧项目路径的数据库（含 WAL 文件）一次性迁移过来。
+4. `node:sqlite` 是 Node 内置模块，Electron 内置 Node 直接可用，无原生模块重编译。
+5. electron-builder 产出未签名 dmg（自用）；GitHub Actions 在推送 `v*` tag 时自动构建并发布到 Releases。苹果签名与公证在需要对外分发时再引入。
+
+浏览器开发模式（`pnpm dev`）与桌面模式（`pnpm dev:desktop`）并存，互不影响。
+
+### 4.6 Codex 负责生成与语义评测，不负责保存状态
 
 Codex 可以参与：
 
@@ -456,7 +468,8 @@ en-play/
 ├── package.json
 ├── apps/
 │   ├── web/                 # TypeScript 前端
-│   └── server/              # 本地 API 和调度服务
+│   ├── server/              # 本地 API 和调度服务
+│   └── desktop/             # Electron 桌面壳（打包 dmg）
 ├── packages/
 │   ├── database/            # SQLite schema 和 migrations
 │   ├── vocabulary-import/   # Markdown 词库解析

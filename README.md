@@ -14,6 +14,21 @@ Open `http://127.0.0.1:4173` or the Obsidian note `en/study/en-play.md`.
 
 Use **同步词库** after the service starts. Importing is idempotent and does not modify the source Markdown files.
 
+## Desktop App (macOS)
+
+```bash
+pnpm install
+pnpm release
+```
+
+This builds the web frontend, bundles the server with esbuild, and runs electron-builder. Unsigned DMGs (arm64 and x86_64) are written to `apps/desktop/release/`; on first launch use right-click → Open.
+
+The desktop app runs the Fastify server inside the Electron main process and loads it from a loopback address. Its database lives at `~/Library/Application Support/En Play/en-play.sqlite3`; on first launch, an existing legacy database at `data/en-play.sqlite3` (including WAL files) is migrated automatically.
+
+For desktop shell development, run `pnpm dev:desktop`.
+
+To publish a release, push a `v*` tag: the GitHub Actions workflow builds the DMGs and uploads them to a GitHub Releases draft.
+
 ## Validate
 
 ```bash

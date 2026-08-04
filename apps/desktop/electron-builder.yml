@@ -1,0 +1,22 @@
+appId: com.enplay.app
+productName: En Play
+directories:
+  output: release
+files:
+  - dist/**
+  - package.json
+extraResources:
+  - from: ../web/dist
+    to: web-dist
+asar: true
+npmRebuild: false
+mac:
+  category: public.app-category.education
+  identity: null
+  target:
+    - target: dmg
+      arch:
+        - arm64
+        - x64
+publish:
+  provider: github

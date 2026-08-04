@@ -30,6 +30,9 @@ const itemBodySchema = z.object({
 });
 
 function webDistPath(): string {
+  if (process.env.EN_PLAY_WEB_DIST) {
+    return path.resolve(process.env.EN_PLAY_WEB_DIST);
+  }
   const directory = path.dirname(fileURLToPath(import.meta.url));
   return path.resolve(directory, "../../web/dist");
 }
