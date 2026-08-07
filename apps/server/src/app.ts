@@ -1,11 +1,13 @@
 import { access } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { type AppConfig, todayInTimeZone } from "@en-play/core";
+import { type AppConfig, todayInTimeZone, createDefaultVaultStructure, detectOnboardingState, TaskScheduler } from "@en-play/core";
 import { EnPlayDatabase } from "@en-play/database";
 import {
   type AnswerEvaluator,
   type ContentGenerator,
+  CodexContentGenerator,
+  CodexAnswerEvaluator,
   DeterministicAnswerEvaluator,
   DeterministicContentGenerator,
 } from "@en-play/evaluation";
@@ -64,16 +66,48 @@ export interface EnPlayApp extends FastifyInstance {
 
 export async function buildApp(
   config: AppConfig,
-  contentGenerator: ContentGenerator = new DeterministicContentGenerator(),
-  answerEvaluator: AnswerEvaluator = new DeterministicAnswerEvaluator(),
+  contentGenerator?: ContentGenerator,
+  answerEvaluator?: AnswerEvaluator,
 ): Promise<EnPlayApp> {
+  // 如果没有提供contentGenerator，尝试使用Codex，否则回退到确定性实现
+  let generator: ContentGenerator;
+  if (!contentGenerator) {
+    try {
+      const codexGenerator = new CodexContentGenerator();
+      const available = await codexGenerator.checkAvailability();
+      generator = available ? codexGenerator : new DeterministicContentGenerator();
+      console.log(`Using ${available ? "Codex" : "Deterministic"} content generator`);
+    } catch {
+      generator = new DeterministicContentGenerator();
+      console.log("Using Deterministic content generator (Codex check failed)");
+    }
+  } else {
+    generator = contentGenerator;
+  }
+
+  // 如果没有提供answerEvaluator，尝试使用Codex，否则回退到确定性实现
+  let evaluator: AnswerEvaluator;
+  if (!answerEvaluator) {
+    try {
+      const codexEvaluator = new CodexAnswerEvaluator();
+      const available = await codexEvaluator.checkAvailability();
+      evaluator = available ? codexEvaluator : new DeterministicAnswerEvaluator();
+      console.log(`Using ${available ? "Codex" : "Deterministic"} answer evaluator`);
+    } catch {
+      evaluator = new DeterministicAnswerEvaluator();
+      console.log("Using Deterministic answer evaluator (Codex check failed)");
+    }
+  } else {
+    evaluator = answerEvaluator;
+  }
   const app = Fastify({ logger: true }) as unknown as EnPlayApp;
   const database = await EnPlayDatabase.open(config.databasePath);
   app.enPlayDatabase = database;
+  const taskScheduler = new TaskScheduler(config);
   const studyService = new StudyService(
     database,
-    contentGenerator,
-    answerEvaluator,
+    generator,
+    evaluator,
     config.newWordsPerDay,
     config.reviewLimit,
   );
@@ -90,7 +124,11 @@ export async function buildApp(
 
   app.setErrorHandler((error, _request, reply) => {
     if (error instanceof VocabImportError) {
-      reply.status(400).send({ error: error.message, code: error.code });
+      reply.status(400).send({
+        error: error.message,
+        code: error.code,
+        suggestions: error.suggestions,
+      });
       return;
     }
     const statusCode =
@@ -112,6 +150,47 @@ export async function buildApp(
     sourceEntries: database.countSourceEntries(),
     currentFileIndex: database.getCurrentFileIndex(),
   }));
+
+  app.get("/api/onboarding", async () => {
+    return detectOnboardingState(config);
+  });
+
+  app.post("/api/onboarding/setup-vault", async () => {
+    await createDefaultVaultStructure(config);
+    return { success: true, message: "词库目录已创建" };
+  });
+
+  // 定时任务管理端点
+  app.get("/api/tasks", async () => {
+    return await taskScheduler.getDefaultTasks();
+  });
+
+  app.post("/api/tasks/:taskId/run", async (request) => {
+    const { taskId } = z.object({ taskId: z.string() }).parse(request.params);
+    const task = (await taskScheduler.getDefaultTasks()).find(t => t.id === taskId);
+    if (!task) {
+      return { error: "Task not found" };
+    }
+
+    try {
+      let result;
+      if (task.type === "new_learning") {
+        const session = await studyService.createNewLearningSession(todayInTimeZone(config.timeZone));
+        result = { taskId, runAt: new Date().toISOString(), success: true, sessionId: session?.id };
+      } else {
+        const session = studyService.createReviewSession(todayInTimeZone(config.timeZone));
+        result = { taskId, runAt: new Date().toISOString(), success: true, sessionId: session?.id };
+      }
+      return result;
+    } catch (error) {
+      return {
+        taskId,
+        runAt: new Date().toISOString(),
+        success: false,
+        message: error instanceof Error ? error.message : String(error),
+      };
+    }
+  });
 
   app.post("/api/import", async () => {
     const vocabulary = await loadVocabulary(config.vocabDir);

@@ -10,9 +10,12 @@ import {
   LoaderCircle,
   RefreshCw,
   RotateCcw,
+  Settings as SettingsIcon,
   TriangleAlert,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Onboarding } from "./Onboarding";
+import { Settings } from "./Settings";
 import { api } from "./api";
 
 type View = "learn" | "review" | "history";
@@ -341,19 +344,23 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
 
   const refresh = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [nextHealth, nextNew, nextReview, nextQueue, nextHistory] = await Promise.all([
+      const [nextHealth, nextOnboarding, nextNew, nextReview, nextQueue, nextHistory] = await Promise.all([
         api.health(),
+        api.onboarding().catch(() => ({ step: "complete" as const, vocabDirConfigured: true, hammerspoonDetected: true })),
         api.getNewSession(),
         api.getReviewSession(),
         api.getReviewQueue(),
         api.history(),
       ]);
       setHealth(nextHealth);
+      setShowOnboarding(nextOnboarding.step !== "complete");
       setNewSession(nextNew.session);
       setReviewSession(nextReview.session);
       setQueue(nextQueue);
@@ -375,155 +382,174 @@ export default function App() {
   );
 
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <div className="brand-block">
-          <div className="brand-mark">EN</div>
-          <div>
-            <strong>En Play</strong>
-            <span>Vocabulary Studio</span>
-          </div>
-        </div>
-        <nav className="primary-nav" aria-label="主要导航">
-          <button
-            type="button"
-            className={view === "learn" ? "active" : ""}
-            onClick={() => setView("learn")}
-          >
-            <BookOpen aria-hidden="true" />
-            新词学习
-          </button>
-          <button
-            type="button"
-            className={view === "review" ? "active" : ""}
-            onClick={() => setView("review")}
-          >
-            <RotateCcw aria-hidden="true" />
-            到期复习
-            {queue && queue.overdue.length + queue.dueToday.length > 0 ? (
-              <span className="nav-count">{queue.overdue.length + queue.dueToday.length}</span>
-            ) : null}
-          </button>
-          <button
-            type="button"
-            className={view === "history" ? "active" : ""}
-            onClick={() => setView("history")}
-          >
-            <History aria-hidden="true" />
-            学习历史
-          </button>
-        </nav>
-        <div className="sidebar-status">
-          <span className={`status-dot ${health ? "online" : "offline"}`} />
-          <div>
-            <strong>{health ? `${health.sourceEntries} 个词条` : "服务未连接"}</strong>
-            <span>
-              {health?.currentFileIndex ? `当前文档 ${health.currentFileIndex}` : "等待词库"}
-            </span>
-          </div>
-        </div>
-      </aside>
-
-      <main className="main-content">
-        <header className="topbar">
-          <div>
-            <span>{health?.today ?? "---- -- --"}</span>
-            <h1>{title}</h1>
-          </div>
-          <div className="topbar-actions">
-            <button
-              type="button"
-              className="secondary-button"
-              disabled={importing}
-              onClick={async () => {
-                setImporting(true);
-                setError(null);
-                try {
-                  await api.importVocabulary();
-                  await refresh();
-                } catch (cause) {
-                  setError(cause instanceof Error ? cause.message : "导入失败");
-                } finally {
-                  setImporting(false);
-                }
-              }}
-            >
-              {importing ? (
-                <LoaderCircle className="spin" aria-hidden="true" />
-              ) : (
-                <Database aria-hidden="true" />
-              )}
-              同步词库
-            </button>
-            <button type="button" className="icon-button bordered" title="刷新" onClick={refresh}>
-              <RefreshCw aria-hidden="true" />
-            </button>
-          </div>
-        </header>
-
-        {error ? <ErrorBanner message={error} onRetry={refresh} /> : null}
-        {health?.sourceEntries === 0 && !loading ? (
-          <div className="setup-banner">
-            <Database aria-hidden="true" />
-            <div>
-              <strong>词库尚未导入</strong>
-              <span>同步 Obsidian 词表后开始学习。</span>
+    <>
+      {showOnboarding ? (
+        <Onboarding onComplete={() => {
+          setShowOnboarding(false);
+          void refresh();
+        }} />
+      ) : showSettings ? (
+        <Settings onClose={() => setShowSettings(false)} />
+      ) : (
+        <div className="app-shell">
+          <aside className="sidebar">
+            <div className="brand-block">
+              <div className="brand-mark">EN</div>
+              <div>
+                <strong>En Play</strong>
+                <span>Vocabulary Studio</span>
+              </div>
             </div>
-          </div>
-        ) : null}
+            <nav className="primary-nav" aria-label="主要导航">
+              <button
+                type="button"
+                className={view === "learn" ? "active" : ""}
+                onClick={() => setView("learn")}
+              >
+                <BookOpen aria-hidden="true" />
+                新词学习
+              </button>
+              <button
+                type="button"
+                className={view === "review" ? "active" : ""}
+                onClick={() => setView("review")}
+              >
+                <RotateCcw aria-hidden="true" />
+                到期复习
+                {queue && queue.overdue.length + queue.dueToday.length > 0 ? (
+                  <span className="nav-count">{queue.overdue.length + queue.dueToday.length}</span>
+                ) : null}
+              </button>
+              <button
+                type="button"
+                className={view === "history" ? "active" : ""}
+                onClick={() => setView("history")}
+              >
+                <History aria-hidden="true" />
+                学习历史
+              </button>
+            </nav>
+            <div className="sidebar-status">
+              <span className={`status-dot ${health ? "online" : "offline"}`} />
+              <div>
+                <strong>{health ? `${health.sourceEntries} 个词条` : "服务未连接"}</strong>
+                <span>
+                  {health?.currentFileIndex ? `当前文档 ${health.currentFileIndex}` : "等待词库"}
+                </span>
+              </div>
+            </div>
+          </aside>
 
-        <div className="view-content">
-          {view === "learn" ? (
-            <SessionView
-              session={newSession}
-              loading={loading}
-              actionLabel="创建今日新词任务"
-              emptyTitle="今日任务尚未创建"
-              emptyDetail="从当前文档选择约 6 个未学词。"
-              onCreate={async () => {
-                const response = await api.createNewSession();
-                setNewSession(response.session);
-              }}
-              onSessionChange={(session) => {
-                setNewSession(session);
-                if (session.status === "completed") void refresh();
-              }}
-              onComplete={
-                newSession
-                  ? async () => {
-                      const response = await api.completeNewSession(newSession.id);
-                      setNewSession(response.session);
+          <main className="main-content">
+            <header className="topbar">
+              <div>
+                <span>{health?.today ?? "---- -- --"}</span>
+                <h1>{title}</h1>
+              </div>
+              <div className="topbar-actions">
+                <button
+                  type="button"
+                  className="secondary-button"
+                  disabled={importing}
+                  onClick={async () => {
+                    setImporting(true);
+                    setError(null);
+                    try {
+                      await api.importVocabulary();
                       await refresh();
+                    } catch (cause) {
+                      setError(cause instanceof Error ? cause.message : "导入失败");
+                    } finally {
+                      setImporting(false);
                     }
-                  : undefined
-              }
-            />
-          ) : null}
+                  }}
+                >
+                  {importing ? (
+                    <LoaderCircle className="spin" aria-hidden="true" />
+                  ) : (
+                    <Database aria-hidden="true" />
+                  )}
+                  同步词库
+                </button>
+                <button type="button" className="icon-button bordered" title="刷新" onClick={refresh}>
+                  <RefreshCw aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  className="icon-button bordered"
+                  title="设置"
+                  onClick={() => setShowSettings(true)}
+                >
+                  <SettingsIcon aria-hidden="true" />
+                </button>
+              </div>
+            </header>
 
-          {view === "review" ? (
-            <>
-              <QueueSummary queue={queue} />
-              <SessionView
-                session={reviewSession}
-                loading={loading}
-                actionLabel="创建今日复习任务"
-                emptyTitle="今日复习尚未创建"
-                emptyDetail="从数据库读取今天到期和此前逾期的词。"
-                onCreate={async () => {
-                  const response = await api.createReviewSession();
-                  setReviewSession(response.session);
-                }}
-                onSessionChange={(session) => {
-                  setReviewSession(session);
-                  void api.getReviewQueue().then(setQueue);
-                }}
-              />
-            </>
-          ) : null}
+            {error ? <ErrorBanner message={error} onRetry={refresh} /> : null}
+            {health?.sourceEntries === 0 && !loading ? (
+              <div className="setup-banner">
+                <Database aria-hidden="true" />
+                <div>
+                  <strong>词库尚未导入</strong>
+                  <span>同步 Obsidian 词表后开始学习。</span>
+                </div>
+              </div>
+            ) : null}
 
-          {view === "history" ? <HistoryView sessions={history} loading={loading} /> : null}
+            <div className="view-content">
+              {view === "learn" ? (
+                <SessionView
+                  session={newSession}
+                  loading={loading}
+                  actionLabel="创建今日新词任务"
+                  emptyTitle="今日任务尚未创建"
+                  emptyDetail="从当前文档选择约 6 个未学词。"
+                  onCreate={async () => {
+                    const response = await api.createNewSession();
+                    setNewSession(response.session);
+                  }}
+                  onSessionChange={(session) => {
+                    setNewSession(session);
+                    if (session.status === "completed") void refresh();
+                  }}
+                  onComplete={
+                    newSession
+                      ? async () => {
+                          const response = await api.completeNewSession(newSession.id);
+                          setNewSession(response.session);
+                          await refresh();
+                        }
+                      : undefined
+                  }
+                />
+              ) : null}
+
+              {view === "review" ? (
+                <>
+                  <QueueSummary queue={queue} />
+                  <SessionView
+                    session={reviewSession}
+                    loading={loading}
+                    actionLabel="创建今日复习任务"
+                    emptyTitle="今日复习尚未创建"
+                    emptyDetail="从数据库读取今天到期和此前逾期的词。"
+                    onCreate={async () => {
+                      const response = await api.createReviewSession();
+                      setReviewSession(response.session);
+                    }}
+                    onSessionChange={(session) => {
+                      setReviewSession(session);
+                      void api.getReviewQueue().then(setQueue);
+                    }}
+                  />
+                </>
+              ) : null}
+
+              {view === "history" ? <HistoryView sessions={history} loading={loading} /> : null}
+            </div>
+          </main>
         </div>
-      </main>
-    </div>
+      )}
+    </>
   );
 }
