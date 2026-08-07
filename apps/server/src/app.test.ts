@@ -29,6 +29,7 @@ describe("API", () => {
       reviewQueuePath: "/tmp/en-play-test/review-queue.md",
       newWordsPerDay: 6,
       reviewLimit: 30,
+      reminderTime: "09:00",
     };
     app = await buildApp(config, new TestGenerator());
     app.enPlayDatabase.importEntries(
@@ -49,6 +50,14 @@ describe("API", () => {
   });
 
   afterEach(async () => app.close());
+
+  it("returns 400 with a readable message when the vocabulary directory is missing", async () => {
+    const response = await app.inject({ method: "POST", url: "/api/import" });
+    expect(response.statusCode).toBe(400);
+    const body = response.json();
+    expect(body.code).toBe("VOCAB_DIR_NOT_FOUND");
+    expect(body.error).toContain("/tmp/does-not-matter");
+  });
 
   it("creates an idempotent new learning session", async () => {
     const first = await app.inject({
@@ -73,6 +82,46 @@ describe("API", () => {
       payload: { date: "2026-07-11" },
     });
     expect(response.json().session).toBeNull();
+  });
+
+  it("limits new learning sessions to the configured newWordsPerDay", async () => {
+    const limited = await buildApp(
+      {
+        host: "127.0.0.1",
+        port: 4173,
+        timeZone: "Asia/Shanghai",
+        vocabDir: "/tmp/does-not-matter",
+        databasePath: ":memory:",
+        reportsDir: "/tmp/en-play-test/reports",
+        reviewQueuePath: "/tmp/en-play-test/review-queue.md",
+        newWordsPerDay: 3,
+        reviewLimit: 30,
+        reminderTime: "09:00",
+      },
+      new TestGenerator(),
+    );
+    limited.enPlayDatabase.importEntries(
+      Array.from({ length: 6 }, (_, index) => ({
+        id: `f001-r001-c0${index + 1}`,
+        fileIndex: 1,
+        rowIndex: 1,
+        columnIndex: index + 1,
+        sourcePath: "/vault/english-words.md",
+        word: `word-${index + 1}`,
+        meaning: `meaning-${index + 1}`,
+        phonetic: "-",
+        sourceOrder: 100_000 + index,
+      })),
+      1,
+      [],
+    );
+    const response = await limited.inject({
+      method: "POST",
+      url: "/api/sessions/new/today",
+      payload: { date: "2026-07-06" },
+    });
+    expect(response.json().session.items).toHaveLength(3);
+    await limited.close();
   });
 
   it("auto evaluates items and completes new learning after the last rating", async () => {

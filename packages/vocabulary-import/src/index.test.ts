@@ -1,5 +1,8 @@
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { parseVocabularyMarkdown } from "./index.js";
+import { loadVocabulary, parseVocabularyMarkdown, VocabImportError } from "./index.js";
 
 describe("parseVocabularyMarkdown", () => {
   it("parses table cells in stable row and column order", () => {
@@ -33,5 +36,30 @@ describe("parseVocabularyMarkdown", () => {
     );
     expect(result.entries).toHaveLength(2);
     expect(new Set(result.entries.map((entry) => entry.id)).size).toBe(2);
+  });
+});
+
+describe("loadVocabulary", () => {
+  it("throws VOCAB_DIR_NOT_FOUND when the directory does not exist", async () => {
+    const missing = path.join(tmpdir(), "en-play-test", "no-such-vocab-dir");
+    await expect(loadVocabulary(missing)).rejects.toMatchObject({
+      name: "VocabImportError",
+      code: "VOCAB_DIR_NOT_FOUND",
+    });
+    await expect(loadVocabulary(missing)).rejects.toBeInstanceOf(VocabImportError);
+    await expect(loadVocabulary(missing)).rejects.toThrow(missing);
+  });
+
+  it("throws VOCAB_DIR_EMPTY when no english-words*.md files exist", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "en-play-vocab-"));
+    try {
+      await expect(loadVocabulary(directory)).rejects.toMatchObject({
+        name: "VocabImportError",
+        code: "VOCAB_DIR_EMPTY",
+      });
+      await expect(loadVocabulary(directory)).rejects.toThrow(directory);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
   });
 });

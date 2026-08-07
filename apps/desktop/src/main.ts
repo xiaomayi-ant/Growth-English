@@ -14,6 +14,7 @@ interface EnPlayServer {
 interface ServerBundle {
   buildApp: (config: AppConfig) => Promise<EnPlayServer>;
   loadConfig: (env: NodeJS.ProcessEnv) => AppConfig;
+  ensureVaultDirectories: (config: AppConfig) => Promise<void>;
 }
 
 const WINDOW_WIDTH = 1080;
@@ -60,6 +61,7 @@ async function loadSettingsEnv(userDataDir: string): Promise<Record<string, stri
     timeZone: "EN_PLAY_TIMEZONE",
     newWordsPerDay: "EN_PLAY_NEW_WORDS_PER_DAY",
     reviewLimit: "EN_PLAY_REVIEW_LIMIT",
+    reminderTime: "EN_PLAY_REMINDER_TIME",
   };
   try {
     const raw = await readFile(path.join(userDataDir, "settings.json"), "utf8");
@@ -90,7 +92,7 @@ async function migrateLegacyDatabase(databasePath: string, legacyPath: string): 
 }
 
 async function startServer(): Promise<number> {
-  const { buildApp, loadConfig } = loadServerBundle();
+  const { buildApp, loadConfig, ensureVaultDirectories } = loadServerBundle();
   const userDataDir = app.getPath("userData");
   const settingsEnv = await loadSettingsEnv(userDataDir);
   const legacyDatabasePath = loadConfig({}).databasePath;
@@ -105,6 +107,7 @@ async function startServer(): Promise<number> {
 
   const port = await findFreePort();
   const config: AppConfig = { ...base, port, databasePath };
+  await ensureVaultDirectories(config);
   server = await buildApp(config);
   await server.listen({ host: config.host, port });
   return port;

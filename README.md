@@ -37,7 +37,7 @@ pnpm release
 桌面版特点：
 
 - Fastify 服务端在 Electron 主进程内运行，窗口通过 loopback 地址加载界面，业务代码零改动
-- 数据库位于 `~/Library/Application Support/En Play/en-play.sqlite3`；首次启动自动迁移旧 `data/en-play.sqlite3`（含 WAL 文件）
+- 数据库位于 `~/Library/Application Support/En Play/en-play.sqlite3`（与浏览器/开发模式的默认路径一致）
 - 桌面壳开发调试：`pnpm dev:desktop`
 
 ### 发版
@@ -54,12 +54,14 @@ GitHub Actions 自动构建两个架构的 dmg 并上传到 Releases 草稿，�
 
 | 数据 | 位置 |
 | --- | --- |
-| SQLite（浏览器模式） | `data/en-play.sqlite3` |
+| SQLite（浏览器/开发模式） | `~/Library/Application Support/En Play/en-play.sqlite3` |
 | SQLite（桌面版） | `~/Library/Application Support/En Play/en-play.sqlite3` |
 | 备份 | `backups/en-play-YYYY-MM-DD.sqlite3` |
-| 原始词库 | `/Users/linctex/Projects/obsidian/en/english-words*.md` |
-| 复习快照 | `/Users/linctex/Projects/obsidian/en/study/review-queue.md` |
-| 每日报告 | `/Users/linctex/Projects/obsidian/en/study/reports/YYYY-MM-DD.md` |
+| 原始词库 | `~/Library/Application Support/En Play/vault/english-words*.md` |
+| 复习快照 | `~/Library/Application Support/En Play/vault/study/review-queue.md` |
+| 每日报告 | `~/Library/Application Support/En Play/vault/study/reports/YYYY-MM-DD.md` |
+
+以上路径均为默认值，可用 `EN_PLAY_VOCAB_DIR`、`EN_PLAY_DATABASE_PATH`、`EN_PLAY_REPORTS_DIR`、`EN_PLAY_REVIEW_QUEUE_PATH` 环境变量覆盖（见 `.env.example`）。
 
 ## 项目结构
 

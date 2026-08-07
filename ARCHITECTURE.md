@@ -4,7 +4,7 @@
 
 - 状态：初稿
 - 项目目录：`/Users/linctex/Projects/cloned/en-play`
-- 词库目录：`/Users/linctex/Projects/obsidian/en`
+- 词库目录：`~/Library/Application Support/En Play/vault`（默认值，可用 `EN_PLAY_VOCAB_DIR` 覆盖）
 - 主要运行环境：macOS 桌面端
 - 最终学习入口：Obsidian 内嵌的本地 Web 界面
 
@@ -47,10 +47,10 @@ En Play 是一个独立项目。项目拥有应用代码、数据库、学习规
 
 ### 4.2 SQLite 是学习状态的唯一事实来源
 
-学习状态保存在项目的数据目录中：
+学习状态默认保存在用户数据目录中（可用 `EN_PLAY_DATABASE_PATH` 覆盖）：
 
 ```text
-/Users/linctex/Projects/cloned/en-play/data/en-play.sqlite3
+~/Library/Application Support/En Play/en-play.sqlite3
 ```
 
 SQLite 保存：
@@ -79,9 +79,9 @@ Obsidian 承担两项职责：
 
 | 数据 | 保存位置 | 用途 |
 | --- | --- | --- |
-| 原始词库 | `/Users/linctex/Projects/obsidian/en/english-words*.md` | Hammerspoon 持续收词，En Play 只读 |
-| 学习状态 | `/Users/linctex/Projects/cloned/en-play/data/en-play.sqlite3` | 应用读取和更新，记录已学位置、复习轮次、评分与进度 |
-| 每日阅读归档 | `/Users/linctex/Projects/obsidian/en/study/reports/YYYY-MM-DD.md` | 给用户和 Obsidian 使用，便于阅读、搜索和回顾 |
+| 原始词库 | `~/Library/Application Support/En Play/vault/english-words*.md` | Hammerspoon 持续收词，En Play 只读 |
+| 学习状态 | `~/Library/Application Support/En Play/en-play.sqlite3` | 应用读取和更新，记录已学位置、复习轮次、评分与进度 |
+| 每日阅读归档 | `~/Library/Application Support/En Play/vault/study/reports/YYYY-MM-DD.md` | 给用户和 Obsidian 使用，便于阅读、搜索和回顾 |
 
 真正的数据备份必须针对 SQLite 文件，通过 SQLite 的一致性备份机制生成到项目的 `backups/` 目录。每日 Markdown 归档不承担数据库备份职责。
 
@@ -284,10 +284,10 @@ D21 最终评估
 
 ### 6.6 Markdown 报告导出器
 
-报告导出器把每日会话摘要写入：
+报告导出器把每日会话摘要写入（默认位于 vault 内，可用 `EN_PLAY_REPORTS_DIR` 覆盖）：
 
 ```text
-/Users/linctex/Projects/obsidian/en/study/reports/YYYY-MM-DD.md
+~/Library/Application Support/En Play/vault/study/reports/YYYY-MM-DD.md
 ```
 
 报告可包含：
@@ -305,7 +305,7 @@ D21 最终评估
 为了让待复习词在 Obsidian 文件列表和搜索中也可见，系统可以额外维护一份可重复生成的队列快照：
 
 ```text
-/Users/linctex/Projects/obsidian/en/study/review-queue.md
+~/Library/Application Support/En Play/vault/study/review-queue.md
 ```
 
 该页面显示逾期、今日到期和近期将到期的词条，并注明来源文档、轮次和日期。它的数据仍然来自 SQLite；每次新词任务、复习任务或手动刷新后覆盖生成。删除或编辑它不会改变真实复习状态。

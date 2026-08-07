@@ -11,7 +11,7 @@ import {
 } from "@en-play/evaluation";
 import { writeDailyReport, writeReviewQueue } from "@en-play/reporting";
 import { StudyService } from "@en-play/scheduler";
-import { loadVocabulary } from "@en-play/vocabulary-import";
+import { loadVocabulary, VocabImportError } from "@en-play/vocabulary-import";
 import cors from "@fastify/cors";
 import fastifyStatic from "@fastify/static";
 import Fastify, { type FastifyInstance } from "fastify";
@@ -89,6 +89,10 @@ export async function buildApp(
   });
 
   app.setErrorHandler((error, _request, reply) => {
+    if (error instanceof VocabImportError) {
+      reply.status(400).send({ error: error.message, code: error.code });
+      return;
+    }
     const statusCode =
       error instanceof z.ZodError
         ? 400

@@ -1,7 +1,8 @@
-import { loadConfig } from "@en-play/core";
+import { ensureVaultDirectories, loadConfig } from "@en-play/core";
 import { buildApp } from "./app.js";
 
 const config = loadConfig();
+await ensureVaultDirectories(config);
 const app = await buildApp(config);
 
 try {

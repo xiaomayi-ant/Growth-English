@@ -5,6 +5,18 @@ import type { ImportIssue, SourceEntry } from "@en-play/core";
 const FILE_PATTERN = /^english-words(?:-(\d{3}))?\.md$/;
 const BREAK_PATTERN = /<br\s*\/?>/i;
 
+export type VocabImportErrorCode = "VOCAB_DIR_NOT_FOUND" | "VOCAB_DIR_EMPTY";
+
+export class VocabImportError extends Error {
+  readonly code: VocabImportErrorCode;
+
+  constructor(code: VocabImportErrorCode, message: string) {
+    super(message);
+    this.name = "VocabImportError";
+    this.code = code;
+  }
+}
+
 export interface ParsedVocabulary {
   entries: SourceEntry[];
   issues: ImportIssue[];
@@ -121,7 +133,22 @@ export async function discoverVocabularyFiles(directory: string): Promise<Vocabu
 }
 
 export async function loadVocabulary(directory: string): Promise<ParsedVocabulary> {
-  const files = await discoverVocabularyFiles(directory);
+  let files: VocabularyFile[];
+  try {
+    files = await discoverVocabularyFiles(directory);
+  } catch (cause) {
+    const code = (cause as NodeJS.ErrnoException).code;
+    if (code === "ENOENT" || code === "ENOTDIR") {
+      throw new VocabImportError("VOCAB_DIR_NOT_FOUND", `词库目录不存在或不是目录:${directory}`);
+    }
+    throw cause;
+  }
+  if (files.length === 0) {
+    throw new VocabImportError(
+      "VOCAB_DIR_EMPTY",
+      `词库目录中没有找到 english-words*.md 文件:${directory}`,
+    );
+  }
   const parsed = await Promise.all(
     files.map(async (file) =>
       parseVocabularyMarkdown(
