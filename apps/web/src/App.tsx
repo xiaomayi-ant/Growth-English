@@ -353,14 +353,15 @@ export default function App() {
     try {
       const [nextHealth, nextOnboarding, nextNew, nextReview, nextQueue, nextHistory] = await Promise.all([
         api.health(),
-        api.onboarding().catch(() => ({ step: "complete" as const, vocabDirConfigured: true, hammerspoonDetected: true })),
+        api.onboarding().catch(() => ({ step: "welcome" as const, hasExistingData: false })),
         api.getNewSession(),
         api.getReviewSession(),
         api.getReviewQueue(),
         api.history(),
       ]);
       setHealth(nextHealth);
-      setShowOnboarding(nextOnboarding.step !== "complete");
+      // 总是显示onboarding，让用户选择是否跳过
+      setShowOnboarding(true);
       setNewSession(nextNew.session);
       setReviewSession(nextReview.session);
       setQueue(nextQueue);

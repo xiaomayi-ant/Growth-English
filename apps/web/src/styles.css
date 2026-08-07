@@ -1053,9 +1053,131 @@ button:disabled {
   justify-content: center;
 }
 
+.onboarding-actions .secondary-button {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.onboarding-actions .secondary-button:hover {
+  background: var(--surface-muted);
+}
+
 .onboarding-actions .primary-button,
 .onboarding-actions .secondary-button {
   min-width: 160px;
+}
+
+.info-banner {
+  background: var(--blue-soft);
+  color: var(--blue);
+  padding: 16px;
+  border-radius: 8px;
+  margin-top: 24px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.path-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.path-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.path-option:hover {
+  border-color: var(--border-strong);
+}
+
+.path-option input[type="radio"] {
+  margin-top: 2px;
+}
+
+.path-option div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.path-option strong {
+  font-size: 14px;
+  color: var(--text);
+}
+
+.path-option span {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* Step indicator styles */
+.step-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 32px;
+  padding: 0 20px;
+}
+
+.step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  opacity: 0.5;
+  transition: opacity 0.3s;
+}
+
+.step.current {
+  opacity: 1;
+}
+
+.step.completed {
+  opacity: 1;
+  color: var(--green);
+}
+
+.step-number {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.step.completed .step-number {
+  background: var(--green);
+  color: white;
+}
+
+.step.current .step-number {
+  background: var(--blue);
+  color: white;
+}
+
+.step-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.step span {
+  font-size: 14px;
+  font-weight: 500;
 }
 
 /* Settings styles */

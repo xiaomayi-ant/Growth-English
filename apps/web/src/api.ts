@@ -26,9 +26,16 @@ interface SessionResponse {
 }
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
+  const headers: Record<string, string> = { ...(init?.headers as Record<string, string>) };
+
+  // 只有在有body的情况下才设置Content-Type为application/json
+  if (init?.body && !headers["Content-Type"]) {
+    headers["Content-Type"] = "application/json";
+  }
+
   const response = await fetch(url, {
     ...init,
-    headers: { "Content-Type": "application/json", ...init?.headers },
+    headers,
   });
   const payload = (await response.json()) as T & { error?: string };
   if (!response.ok) {
@@ -46,8 +53,16 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
 export const api = {
   health: () => request<HealthResponse>("/api/health"),
   onboarding: () => request<OnboardingState>("/api/onboarding"),
-  setupVault: () => request<{ success: boolean; message: string }>("/api/onboarding/setup-vault", { method: "POST" }),
-  importVocabulary: () => request<ImportSummary>("/api/import", { method: "POST" }),
+  setupVault: (vaultPath?: string) =>
+    request<{ success: boolean; message: string }>("/api/onboarding/setup-vault", {
+      method: "POST",
+      body: JSON.stringify({ vaultPath: vaultPath || "~/Documents/EnPlay/vault" }),
+    }),
+  importVocabulary: () =>
+    request<ImportSummary>("/api/import", {
+      method: "POST",
+      body: JSON.stringify({}),
+    }),
   getNewSession: () => request<SessionResponse>("/api/sessions/new/today"),
   createNewSession: () =>
     request<SessionResponse>("/api/sessions/new/today", {

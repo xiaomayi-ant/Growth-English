@@ -155,9 +155,18 @@ export async function buildApp(
     return detectOnboardingState(config);
   });
 
-  app.post("/api/onboarding/setup-vault", async () => {
-    await createDefaultVaultStructure(config);
-    return { success: true, message: "词库目录已创建" };
+  app.post("/api/onboarding/setup-vault", async (request) => {
+    const body = z.object({ vaultPath: z.string().optional() }).parse(request.body || {});
+    const vaultPath = body.vaultPath || "~/Documents/EnPlay/vault";
+
+    try {
+      // 展开用户提供的路径
+      const expandedPath = vaultPath.replace(/^~/, process.env.HOME || process.env.USERPROFILE || "");
+      await createDefaultVaultStructure({ ...config, vocabDir: expandedPath });
+      return { success: true, message: "词库目录已创建" };
+    } catch (error) {
+      throw new Error(`设置词库目录失败: ${error instanceof Error ? error.message : String(error)}`);
+    }
   });
 
   // 定时任务管理端点

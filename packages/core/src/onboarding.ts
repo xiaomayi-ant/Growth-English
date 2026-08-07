@@ -2,37 +2,46 @@ import { existsSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import type { AppConfig, EditableSettings } from "./config.js";
+import type { AppConfig } from "./config.js";
 
 export interface OnboardingState {
-  step: "welcome" | "vault-config" | "hammerspoon-setup" | "complete";
-  vocabDirConfigured: boolean;
-  hammerspoonDetected: boolean;
+  step: "welcome" | "setup" | "import" | "first-lesson" | "complete";
+  hasExistingData: boolean;
+  completedSteps: string[];
 }
 
-export function detectOnboardingState(config: AppConfig): OnboardingState {
-  const hasVaultFiles = existsSync(path.join(config.vocabDir, "english-words.md")) ||
-                       existsSync(path.join(config.vocabDir, "english-words-001.md"));
-  const hammerspoonPath = path.join(os.homedir(), ".hammerspoon");
-  const hasHammerspoon = existsSync(path.join(hammerspoonPath, "init.lua"));
+// 用于标记onboarding完成的文件
+const ONBOARDING_COMPLETE_FILE = ".onboarding-complete";
 
-  let step: OnboardingState["step"] = "welcome";
-  if (!hasVaultFiles) {
-    step = "vault-config";
-  } else if (!hasHammerspoon) {
-    step = "hammerspoon-setup";
-  } else {
-    step = "complete";
+export function detectOnboardingState(config: AppConfig): OnboardingState {
+  const hasExistingData = existsSync(config.databasePath);
+  const hasVaultFiles = existsSync(path.join(config.vocabDir, "english-words.md"));
+  const hasOnboardingComplete = existsSync(path.join(path.dirname(config.databasePath), ONBOARDING_COMPLETE_FILE));
+
+  if (hasOnboardingComplete && hasExistingData) {
+    return {
+      step: "complete",
+      hasExistingData: true,
+      completedSteps: ["setup", "import", "first-lesson"],
+    };
   }
 
-  return {
-    step,
-    vocabDirConfigured: hasVaultFiles,
-    hammerspoonDetected: hasHammerspoon,
-  };
+  const completedSteps: string[] = [];
+  if (hasVaultFiles) completedSteps.push("setup");
+  if (hasExistingData) completedSteps.push("import");
+
+  // 根据完成进度返回相应步骤
+  if (!hasVaultFiles) {
+    return { step: "setup", hasExistingData, completedSteps };
+  } else if (!hasExistingData) {
+    return { step: "import", hasExistingData: false, completedSteps };
+  } else {
+    return { step: "first-lesson", hasExistingData: true, completedSteps };
+  }
 }
 
 export async function createDefaultVaultStructure(config: AppConfig): Promise<void> {
+  // 确保父目录存在
   await mkdir(config.vocabDir, { recursive: true });
   await mkdir(path.join(config.vocabDir, "study", "reports"), { recursive: true });
 
@@ -43,55 +52,30 @@ export async function createDefaultVaultStructure(config: AppConfig): Promise<vo
 
 | Word | Meaning | Phonetic |
 | :--- | :--- | :--- |
-| hello<br>你好<br>həˈloʊ | Used as a greeting or to begin a telephone conversation | həˈloʊ |
-| world<br>世界<br>wɜːrld | The earth and all the people and things on it | wɜːrld |
+| study<br>学习<br>ˈstʌdi | The activity of learning or gaining knowledge | ˈstʌdi |
+| practice<br>练习<br>ˈpræktɪs | Repeated exercise in an activity or skill to acquire proficiency | ˈpræktɪs |
+| improve<br>改进<br>ɪmˈpruːv | To become better or make something better | ɪmˈpruːv |
+| learn<br>学习<br>lɜːrn | To gain knowledge or skill through study, experience, or teaching | lɜːrn |
 `;
-    await mkdir(path.dirname(samplePath), { recursive: true });
     const { writeFile: fsWriteFile } = await import("node:fs/promises");
     await fsWriteFile(samplePath, sampleContent, "utf-8");
   }
 }
 
-export function getHammerspoonScriptContent(vaultPath: string): string {
-  return `-- En Play vocabulary collection script
--- This script monitors clipboard for English words and saves them to your vault
+export async function markOnboardingComplete(config: AppConfig): Promise<void> {
+  const { writeFile: fsWriteFile } = await import("node:fs/promises");
+  const completeMarker = path.join(path.dirname(config.databasePath), ONBOARDING_COMPLETE_FILE);
+  await fsWriteFile(completeMarker, new Date().toISOString(), "utf-8");
+}
 
-local en_play_vocab = "${vaultPath.replace(/\\/g, "\\\\")}"
+export function getDefaultVaultPath(): string {
+  return "~/Documents/EnPlay/vault";
+}
 
--- Function to check if clipboard content is an English word
-local function isEnglishWord(text)
-  -- Check if text is primarily English characters (a-z, A-Z, spaces, hyphens)
-  return string.match(text, "^[a-zA-Z][a-zA-Z%s%-]*[a-zA-Z]$") ~= nil
-end
-
--- Function to append word to vocabulary file
-local function appendWordToFile(word)
-  local file = io.open(en_play_vocab .. "/english-words.md", "a")
-  if file then
-    local timestamp = os.date("%Y-%m-%d %H:%M")
-    file:write("| " .. word .. "<br>翻译待填<br>音标待填 |\\n")
-    file:close()
-    print("En Play: Added word - " .. word)
-  end
-end
-
--- Monitor clipboard changes
-local lastClipboard = ""
-
-hs.hotkey.bind({"cmd", "shift"}, "w", function()
-  local current = hs.pasteboard.getContents()
-  if current and current ~= "" and current ~= lastClipboard then
-    if isEnglishWord(current) then
-      appendWordToFile(current)
-      lastClipboard = current
-      hs.alert.show("En Play: Word added - " .. current)
-    else
-      hs.alert.show("En Play: Not an English word")
-    end
-  end
-end)
-
-print("En Play vocabulary collector loaded")
-print("Press Cmd+Shift+W to add the current clipboard word to your vocabulary")
-`;
+export function getRecommendedPaths(): { vocabDir: string; databasePath: string } {
+  const dataDir = path.join(os.homedir(), "Library", "Application Support", "En Play");
+  return {
+    vocabDir: path.join(dataDir, "vault"),
+    databasePath: path.join(dataDir, "en-play.sqlite3"),
+  };
 }
