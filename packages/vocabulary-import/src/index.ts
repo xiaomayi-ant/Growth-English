@@ -5,15 +5,17 @@ import type { ImportIssue, SourceEntry } from "@en-play/core";
 const FILE_PATTERN = /^english-words(?:-(\d{3}))?\.md$/;
 const BREAK_PATTERN = /<br\s*\/?>/i;
 
-export type VocabImportErrorCode = "VOCAB_DIR_NOT_FOUND" | "VOCAB_DIR_EMPTY";
+export type VocabImportErrorCode = "VOCAB_DIR_NOT_FOUND" | "VOCAB_DIR_EMPTY" | "VOCAB_FILES_MISSING";
 
 export class VocabImportError extends Error {
   readonly code: VocabImportErrorCode;
+  readonly suggestions: string[];
 
-  constructor(code: VocabImportErrorCode, message: string) {
+  constructor(code: VocabImportErrorCode, message: string, suggestions: string[] = []) {
     super(message);
     this.name = "VocabImportError";
     this.code = code;
+    this.suggestions = suggestions;
   }
 }
 
@@ -139,14 +141,28 @@ export async function loadVocabulary(directory: string): Promise<ParsedVocabular
   } catch (cause) {
     const code = (cause as NodeJS.ErrnoException).code;
     if (code === "ENOENT" || code === "ENOTDIR") {
-      throw new VocabImportError("VOCAB_DIR_NOT_FOUND", `词库目录不存在或不是目录:${directory}`);
+      throw new VocabImportError(
+        "VOCAB_DIR_NOT_FOUND",
+        `词库目录不存在或不是目录: ${directory}`,
+        [
+          "请检查路径设置是否正确",
+          "确保目录已创建并且有访问权限",
+          "您可以在设置中修改词库路径",
+          "首次使用请运行首次设置向导",
+        ],
+      );
     }
     throw cause;
   }
   if (files.length === 0) {
     throw new VocabImportError(
       "VOCAB_DIR_EMPTY",
-      `词库目录中没有找到 english-words*.md 文件:${directory}`,
+      `词库目录中没有找到 english-words*.md 文件: ${directory}`,
+      [
+        "请确保词库文件存在，文件名应为 english-words.md 或 english-words-001.md 等",
+        "首次使用建议先运行首次设置向导创建示例词库",
+        "如已有词库文件，请检查文件命名格式是否正确",
+      ],
     );
   }
   const parsed = await Promise.all(

@@ -1,4 +1,6 @@
 import type { EvaluationResult, ScenarioContent, SourceEntry } from "@en-play/core";
+import { CodexContentGenerator } from "./codex.js";
+import { CodexAnswerEvaluator } from "./codex-evaluator.js";
 
 export interface ContentGenerator {
   generateScenario(candidates: SourceEntry[], count: number): Promise<ScenarioContent>;
@@ -12,6 +14,9 @@ export interface AnswerEvaluator {
     answer: string,
   ): Promise<EvaluationResult>;
 }
+
+export { CodexContentGenerator } from "./codex.js";
+export { CodexAnswerEvaluator } from "./codex-evaluator.js";
 
 export class DeterministicContentGenerator implements ContentGenerator {
   async generateScenario(candidates: SourceEntry[], count: number): Promise<ScenarioContent> {

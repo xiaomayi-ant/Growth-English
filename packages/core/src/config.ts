@@ -52,7 +52,16 @@ export function readSettingsFile(settingsPath: string): Partial<EditableSettings
     const parsed = editableSettingsSchema
       .partial()
       .safeParse(JSON.parse(readFileSync(settingsPath, "utf8")));
-    return parsed.success ? parsed.data : {};
+    if (!parsed.success) return {};
+
+    // 过滤掉 undefined 值
+    const result: Partial<EditableSettings> = {};
+    for (const [key, value] of Object.entries(parsed.data)) {
+      if (value !== undefined) {
+        (result as Record<string, unknown>)[key] = value;
+      }
+    }
+    return result;
   } catch {
     return {};
   }
@@ -86,18 +95,27 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const vaultDir = path.join(dataDir, "vault");
   const databasePath = env.EN_PLAY_DATABASE_PATH ?? path.join(dataDir, "en-play.sqlite3");
   const saved = readSettingsFile(settingsPathForDatabasePath(databasePath));
+
+  // 过滤掉 undefined 值，避免类型错误
+  const filteredSaved: Partial<EditableSettings> = {};
+  for (const [key, value] of Object.entries(saved)) {
+    if (value !== undefined) {
+      (filteredSaved as Record<string, unknown>)[key] = value;
+    }
+  }
+
   return configSchema.parse({
     host: env.EN_PLAY_HOST ?? "127.0.0.1",
     port: Number(env.EN_PLAY_PORT ?? 4173),
     timeZone: env.EN_PLAY_TIMEZONE ?? "Asia/Shanghai",
-    vocabDir: env.EN_PLAY_VOCAB_DIR ?? saved.vocabDir ?? vaultDir,
+    vocabDir: env.EN_PLAY_VOCAB_DIR ?? filteredSaved.vocabDir ?? vaultDir,
     databasePath,
     reportsDir: env.EN_PLAY_REPORTS_DIR ?? path.join(vaultDir, "study", "reports"),
     reviewQueuePath:
       env.EN_PLAY_REVIEW_QUEUE_PATH ?? path.join(vaultDir, "study", "review-queue.md"),
-    newWordsPerDay: Number(env.EN_PLAY_NEW_WORDS_PER_DAY ?? saved.newWordsPerDay ?? 6),
-    reviewLimit: Number(env.EN_PLAY_REVIEW_LIMIT ?? saved.reviewLimit ?? 30),
-    reminderTime: env.EN_PLAY_REMINDER_TIME ?? saved.reminderTime ?? "09:00",
+    newWordsPerDay: Number(env.EN_PLAY_NEW_WORDS_PER_DAY ?? filteredSaved.newWordsPerDay ?? 6),
+    reviewLimit: Number(env.EN_PLAY_REVIEW_LIMIT ?? filteredSaved.reviewLimit ?? 30),
+    reminderTime: env.EN_PLAY_REMINDER_TIME ?? filteredSaved.reminderTime ?? "09:00",
   });
 }
 

@@ -7,6 +7,19 @@ interface HealthResponse {
   currentFileIndex: number | null;
 }
 
+interface OnboardingState {
+  step: "welcome" | "vault-config" | "hammerspoon-setup" | "complete";
+  vocabDirConfigured: boolean;
+  hammerspoonDetected: boolean;
+}
+
+interface ApiError {
+  error: string;
+  code?: string;
+  suggestions?: string[];
+  details?: unknown;
+}
+
 interface SessionResponse {
   session: StudySession | null;
   reason?: string | null;
@@ -19,13 +32,21 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
   });
   const payload = (await response.json()) as T & { error?: string };
   if (!response.ok) {
-    throw new Error(payload.error ?? `Request failed with ${response.status}`);
+    const errorPayload = payload as ApiError & { suggestions?: string[]; details?: unknown };
+    const errorMessage = errorPayload.error
+      ? errorPayload.suggestions && errorPayload.suggestions.length > 0
+        ? `${errorPayload.error}\n\n建议：\n${errorPayload.suggestions.map((s) => `• ${s}`).join("\n")}`
+        : errorPayload.error
+      : `Request failed with ${response.status}`;
+    throw new Error(errorMessage);
   }
   return payload;
 }
 
 export const api = {
   health: () => request<HealthResponse>("/api/health"),
+  onboarding: () => request<OnboardingState>("/api/onboarding"),
+  setupVault: () => request<{ success: boolean; message: string }>("/api/onboarding/setup-vault", { method: "POST" }),
   importVocabulary: () => request<ImportSummary>("/api/import", { method: "POST" }),
   getNewSession: () => request<SessionResponse>("/api/sessions/new/today"),
   createNewSession: () =>
