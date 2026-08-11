@@ -20,3 +20,5 @@ mac:
         - x64
 publish:
   provider: github
+  # 默认是 draft，需要手动点 Publish；改成 release 后推 v* tag 直接正式发布
+  releaseType: release
