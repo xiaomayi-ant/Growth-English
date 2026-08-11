@@ -1,9 +1,9 @@
 {
-  "name": "@en-play/desktop",
+  "name": "@enpet/desktop",
   "version": "0.0.3",
   "private": true,
   "type": "module",
-  "description": "En Play desktop app (Electron shell)",
+  "description": "EnPet desktop app (Electron shell)",
   "main": "dist/main.cjs",
   "repository": {
     "type": "git",
@@ -16,7 +16,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@en-play/core": "workspace:*"
+    "@enpet/core": "workspace:*"
   },
   "devDependencies": {
     "electron": "^43.2.0",

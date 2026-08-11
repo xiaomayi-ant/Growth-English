@@ -41,7 +41,7 @@ describe("parseVocabularyMarkdown", () => {
 
 describe("loadVocabulary", () => {
   it("throws VOCAB_DIR_NOT_FOUND when the directory does not exist", async () => {
-    const missing = path.join(tmpdir(), "en-play-test", "no-such-vocab-dir");
+    const missing = path.join(tmpdir(), "enpet-test", "no-such-vocab-dir");
     await expect(loadVocabulary(missing)).rejects.toMatchObject({
       name: "VocabImportError",
       code: "VOCAB_DIR_NOT_FOUND",
@@ -51,7 +51,7 @@ describe("loadVocabulary", () => {
   });
 
   it("throws VOCAB_DIR_EMPTY when no english-words*.md files exist", async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "en-play-vocab-"));
+    const directory = await mkdtemp(path.join(tmpdir(), "enpet-vocab-"));
     try {
       await expect(loadVocabulary(directory)).rejects.toMatchObject({
         name: "VocabImportError",

@@ -1,5 +1,5 @@
 {
-  "name": "@en-play/server",
+  "name": "@enpet/server",
   "version": "0.0.3",
   "private": true,
   "type": "module",
@@ -10,12 +10,12 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@en-play/core": "workspace:*",
-    "@en-play/database": "workspace:*",
-    "@en-play/evaluation": "workspace:*",
-    "@en-play/reporting": "workspace:*",
-    "@en-play/scheduler": "workspace:*",
-    "@en-play/vocabulary-import": "workspace:*",
+    "@enpet/core": "workspace:*",
+    "@enpet/database": "workspace:*",
+    "@enpet/evaluation": "workspace:*",
+    "@enpet/reporting": "workspace:*",
+    "@enpet/scheduler": "workspace:*",
+    "@enpet/vocabulary-import": "workspace:*",
     "@fastify/cors": "^11.2.0",
     "@fastify/static": "^9.0.0",
     "fastify": "^5.6.2",

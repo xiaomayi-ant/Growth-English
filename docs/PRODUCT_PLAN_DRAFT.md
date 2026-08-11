@@ -1,4 +1,4 @@
-# GrowthEnglish(En Play)产品与技术规划草稿
+# GrowthEnglish(EnPet)产品与技术规划草稿
 
 > 状态:草稿,供讨论。涉及未决策处用「?」标注。
 > 日期:2026-08-07
@@ -47,11 +47,11 @@ Obsidian 是闭源免费软件,**不能直接打包进我们的 dmg 再分发**(
 原则:**全部落在用户可写目录,不申请特殊权限,避开系统保护路径**。
 
 - Obsidian 本体:标准位置 `/Applications/Obsidian.app`(用户级安装也可 `~/Applications`,检测时两个都找)。
-- Vault(词库 md 文件):**默认放 `~/Library/Application Support/En Play/vault/`(已定,2026-08-07)**。
+- Vault(词库 md 文件):**默认放 `~/Library/Application Support/EnPet/vault/`(已定,2026-08-07)**。
   - 决策理由:`~/Documents` 的定位是「用户文档」,可能被清理工具/同步策略/用户本人批量清空,词库放那里有丢失风险;`Application Support` 是应用专属数据的标准位置,无权限弹窗、不会被误当文档清理。
-  - 注意放在 `En Play/` 子目录下而不是 `Application Support/vault/`:`Application Support` 是所有应用共享的,裸名 `vault` 有与其他应用撞目录的风险。
+  - 注意放在 `EnPet/` 子目录下而不是 `Application Support/vault/`:`Application Support` 是所有应用共享的,裸名 `vault` 有与其他应用撞目录的风险。
   - 代价:该位置对用户不可见,想用 Obsidian 直接打开 vault 需要在向导/设置里提供「在 Obsidian 中打开」「在 Finder 中显示」按钮;位置本身做成可配置项,高级用户可改到 iCloud Drive 等位置自行同步。
-- 我们自己的数据:保持现状 `~/Library/Application Support/En Play/`(SQLite、settings.json),规范且无权限问题。
+- 我们自己的数据:保持现状 `~/Library/Application Support/EnPet/`(SQLite、settings.json),规范且无权限问题。
 - dmg 分发注意:当前 `electron-builder.yml` 是 `identity: null` **未签名**。**已定(2026-08-07):现阶段不购买苹果开发者账号、不做签名公证**(尝试期不投入额外本金)。因此分发文档必须写明 Gatekeeper 绕过方式:首次右键 →「打开」,或 `xattr -d com.apple.quarantine /Applications/En\ Play.app`。代价是安装门槛略高,等产品验证成立后再补签名。
 
 ### c. Hammerspoon 的安装与配置(必选组件)
@@ -60,9 +60,9 @@ Obsidian 是闭源免费软件,**不能直接打包进我们的 dmg 再分发**(
 
 - **安装**:首启向导检测 `/Applications/Hammerspoon.app`,缺失则引导 `brew install --cask hammerspoon` 或官网下载。
 - **权限**:Hammerspoon 需要「辅助功能(Accessibility)」权限才能监听键盘/剪贴板。首次运行 Hammerspoon 会引导用户授权——我们只需要在向导里提示这一步,无法代劳(系统限制)。
-- **配置自动化**:我们把收词 Lua 脚本作为应用资源打包,首启时写入 `~/.hammerspoon/en-play.lua`,并在 `init.lua` 里追加一行 `require("en-play")`(幂等,检测已存在则跳过)。脚本职责:监听 Cmd+C(或双击 Cmd+C)→ 读取剪贴板 → 判定为英文词条 → 按固定表格格式追加到 vault 的 `english-words(-NNN).md`。
+- **配置自动化**:我们把收词 Lua 脚本作为应用资源打包,首启时写入 `~/.hammerspoon/enpet.lua`,并在 `init.lua` 里追加一行 `require("enpet")`(幂等,检测已存在则跳过)。脚本职责:监听 Cmd+C(或双击 Cmd+C)→ 读取剪贴板 → 判定为英文词条 → 按固定表格格式追加到 vault 的 `english-words(-NNN).md`。
 - **注意**:`~/.hammerspoon` 目录若不存在需先创建;首次写入后提醒用户 Reload Config(或脚本里调用 `hs.reload()`)。
-- 接口约定不变:Hammerspoon 只写 `english-words*.md`,En Play 只读(见 `ARCHITECTURE.md`)。
+- 接口约定不变:Hammerspoon 只写 `english-words*.md`,EnPet 只读(见 `ARCHITECTURE.md`)。
 
 ### d. 翻译/LLM 接口设计
 
@@ -79,7 +79,7 @@ Obsidian 是闭源免费软件,**不能直接打包进我们的 dmg 再分发**(
 设计要点(备选方案启用时适用):
 
 - **配置结构**:`{ provider: "openai" | "deepseek" | "glm", apiKey: string, model?: string, baseURL?: string(高级覆盖) }`。provider 决定默认 baseURL 和模型清单,用户只需粘贴 key。
-- **key 存储**:不落明文。Electron 主进程用 `safeStorage`(底层 macOS Keychain)加密后存 `settings.json`;浏览器/开发模式回退到环境变量 `EN_PLAY_LLM_API_KEY`。**绝不写进 Obsidian vault 或 SQLite 同步范围**。
+- **key 存储**:不落明文。Electron 主进程用 `safeStorage`(底层 macOS Keychain)加密后存 `settings.json`;浏览器/开发模式回退到环境变量 `ENPET_LLM_API_KEY`。**绝不写进 Obsidian vault 或 SQLite 同步范围**。
 - **代码落点**:已预留——`packages/evaluation/src/index.ts` 的 `ContentGenerator` / `AnswerEvaluator` 接口。新增 `OpenAICompatibleContentGenerator` / `OpenAICompatibleAnswerEvaluator` 实现,替换现在的 Deterministic 桩即可,scheduler 等上层不动。
 - **设置页**:provider 下拉 + key 输入 + 「测试连接」按钮(发一个最小请求验证 key 可用),未配置时学习页给出引导而不是报错。
 - 翻译场景(收词时释义)与学习场景(情景/短文生成、答案评测)可以**分别配置 provider**(收词用便宜/免费模型,生成用强模型)。
@@ -98,9 +98,9 @@ Obsidian 是闭源免费软件,**不能直接打包进我们的 dmg 再分发**(
 转变后的架构:
 
 ```
-Hammerspoon ──写──> vault/english-words*.md ──读──> En Play (SQLite 唯一事实来源)
+Hammerspoon ──写──> vault/english-words*.md ──读──> EnPet (SQLite 唯一事实来源)
                                                        │
-                        En Play App(自研交互学习界面)──┘
+                        EnPet App(自研交互学习界面)──┘
                                                        │
                           Codex / LLM(选词·情景生成·评测)
                                                        └──> 报告/队列写回 vault(可选)
@@ -116,7 +116,7 @@ Hammerspoon ──写──> vault/english-words*.md ──读──> En Play (S
 | 方案 | 结论 |
 |---|---|
 | A. 官方 LLM API 直连 | 放弃(额外计费、要用户配 key)。多 provider API key 设计保留为备选,见 §1.d |
-| B. Codex CLI 自动化 | **采用**。App 唤起 `codex` CLI:读 vault/任务文件 → 产出按约定格式落盘(md)→ En Play 导入 SQLite |
+| B. Codex CLI 自动化 | **采用**。App 唤起 `codex` CLI:读 vault/任务文件 → 产出按约定格式落盘(md)→ EnPet 导入 SQLite |
 | C. 混合 | 不需要(无 A 了) |
 
 纯 CLI 方案的设计要点:
@@ -143,7 +143,7 @@ Hammerspoon ──写──> vault/english-words*.md ──读──> En Play (S
 ### 当前版本(MVP)范围
 
 1. **收词**:Hammerspoon 监听 Cmd+C → 按固定格式写入 vault md(自动化、零负担)。
-2. **沉淀**:En Play 导入 SQLite,形成稳定词库(已完成)。
+2. **沉淀**:EnPet 导入 SQLite,形成稳定词库(已完成)。
 3. **情境化学习**(核心差异化):LLM/Codex 分析每张 md(每天的词)之间的关系,把孤立的词编进同一个情景——
    - 层次:单词 → 短语 → 句子 → 短文,逐级包裹;
    - 每个学习单元是一个「有故事的小场景」,不是词表。
@@ -174,7 +174,7 @@ Hammerspoon ──写──> vault/english-words*.md ──读──> En Play (S
 1. **Codex 接入 = 纯 Codex CLI**,不引入额外 API 消耗(§2);多 provider API key 方案留作备选(§1.d)。
 2. **Hammerspoon = 必选组件**,App 不做自己的剪贴板监听(§1.c)。
 3. **评测节奏 = 准实时等待**:开放式答案提交后当场等 CLI 出评测,等待体验细节待实测延迟后定(§2)。
-4. **Vault 默认位置 = `~/Library/Application Support/En Play/vault/`**,避开 `~/Documents` 被清空的风险;位置可配置(§1.b)。
+4. **Vault 默认位置 = `~/Library/Application Support/EnPet/vault/`**,避开 `~/Documents` 被清空的风险;位置可配置(§1.b)。
 5. **暂不购买苹果开发者账号**,dmg 未签名分发 + 文档写明 Gatekeeper 绕过方式(§1.b)。
 6. **学习参数做成「默认模式 + 自定义模式」**,可在设置页调整(§3)。
 
@@ -203,6 +203,6 @@ Hammerspoon ──写──> vault/english-words*.md ──读──> En Play (S
 
 - Electron 43 + Fastify(127.0.0.1)+ React 19,SQLite(`node:sqlite`)是唯一事实来源。
 - 「同步词库」实为从 vault 的 `english-words*.md` 单向导入 SQLite,纯本地,无远程同步。
-- 桌面版数据:`~/Library/Application Support/En Play/`;配置覆盖走 `userData/settings.json`(无 UI)。
+- 桌面版数据:`~/Library/Application Support/EnPet/`;配置覆盖走 `userData/settings.json`(无 UI)。
 - LLM 接入预留点:`packages/evaluation` 的 `ContentGenerator` / `AnswerEvaluator`,现为确定性桩。
 - 已导入真实词条 260;dmg 未签名、无自动更新。

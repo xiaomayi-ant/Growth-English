@@ -69,13 +69,13 @@ export async function markOnboardingComplete(config: AppConfig): Promise<void> {
 }
 
 export function getDefaultVaultPath(): string {
-  return "~/Documents/EnPlay/vault";
+  return "~/Documents/EnPet/vault";
 }
 
 export function getRecommendedPaths(): { vocabDir: string; databasePath: string } {
-  const dataDir = path.join(os.homedir(), "Library", "Application Support", "En Play");
+  const dataDir = path.join(os.homedir(), "Library", "Application Support", "EnPet");
   return {
     vocabDir: path.join(dataDir, "vault"),
-    databasePath: path.join(dataDir, "en-play.sqlite3"),
+    databasePath: path.join(dataDir, "enpet.sqlite3"),
   };
 }

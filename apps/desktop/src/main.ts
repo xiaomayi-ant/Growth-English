@@ -3,27 +3,28 @@ import { copyFile, readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import net from "node:net";
 import path from "node:path";
-import type { AppConfig } from "@en-play/core";
+import type { AppConfig } from "@enpet/core";
 import { app, BrowserWindow, dialog } from "electron";
 
-interface EnPlayServer {
+interface EnPetServer {
   listen(options: { host: string; port: number }): Promise<string>;
   close(): Promise<void>;
 }
 
 interface ServerBundle {
-  buildApp: (config: AppConfig) => Promise<EnPlayServer>;
+  buildApp: (config: AppConfig) => Promise<EnPetServer>;
   loadConfig: (env: NodeJS.ProcessEnv) => AppConfig;
   ensureVaultDirectories: (config: AppConfig) => Promise<void>;
+  migrateLegacyDataDir: () => Promise<void>;
 }
 
 const WINDOW_WIDTH = 1080;
 const WINDOW_HEIGHT = 760;
 
-// package.json 的 name 是 @en-play/desktop（含斜杠），不能用作 userData 目录名
-app.setName("En Play");
+// package.json 的 name 是 @enpet/desktop（含斜杠），不能用作 userData 目录名
+app.setName("EnPet");
 
-let server: EnPlayServer | null = null;
+let server: EnPetServer | null = null;
 let activePort: number | null = null;
 let quitting = false;
 
@@ -55,13 +56,13 @@ async function loadSettingsEnv(userDataDir: string): Promise<Record<string, stri
   // Reserved extension point: userData/settings.json can override config values
   // until a proper settings page exists.
   const keyMap: Record<string, string> = {
-    vocabDir: "EN_PLAY_VOCAB_DIR",
-    reportsDir: "EN_PLAY_REPORTS_DIR",
-    reviewQueuePath: "EN_PLAY_REVIEW_QUEUE_PATH",
-    timeZone: "EN_PLAY_TIMEZONE",
-    newWordsPerDay: "EN_PLAY_NEW_WORDS_PER_DAY",
-    reviewLimit: "EN_PLAY_REVIEW_LIMIT",
-    reminderTime: "EN_PLAY_REMINDER_TIME",
+    vocabDir: "ENPET_VOCAB_DIR",
+    reportsDir: "ENPET_REPORTS_DIR",
+    reviewQueuePath: "ENPET_REVIEW_QUEUE_PATH",
+    timeZone: "ENPET_TIMEZONE",
+    newWordsPerDay: "ENPET_NEW_WORDS_PER_DAY",
+    reviewLimit: "ENPET_REVIEW_LIMIT",
+    reminderTime: "ENPET_REMINDER_TIME",
   };
   try {
     const raw = await readFile(path.join(userDataDir, "settings.json"), "utf8");
@@ -92,16 +93,19 @@ async function migrateLegacyDatabase(databasePath: string, legacyPath: string): 
 }
 
 async function startServer(): Promise<number> {
-  const { buildApp, loadConfig, ensureVaultDirectories } = loadServerBundle();
+  const { buildApp, loadConfig, ensureVaultDirectories, migrateLegacyDataDir } = loadServerBundle();
+  // 改名前的 "En Play" 数据目录必须在读取配置和设置文件之前搬过来
+  await migrateLegacyDataDir();
+
   const userDataDir = app.getPath("userData");
   const settingsEnv = await loadSettingsEnv(userDataDir);
   const legacyDatabasePath = loadConfig({}).databasePath;
   const base = loadConfig({ ...process.env, ...settingsEnv });
 
-  const databasePath = path.join(userDataDir, "en-play.sqlite3");
+  const databasePath = path.join(userDataDir, "enpet.sqlite3");
   await migrateLegacyDatabase(databasePath, legacyDatabasePath);
 
-  process.env.EN_PLAY_WEB_DIST = app.isPackaged
+  process.env.ENPET_WEB_DIST = app.isPackaged
     ? path.join(process.resourcesPath, "web-dist")
     : path.resolve(__dirname, "../../web/dist");
 
@@ -120,7 +124,7 @@ function createWindow(): void {
     height: WINDOW_HEIGHT,
     minWidth: 720,
     minHeight: 560,
-    title: "En Play",
+    title: "EnPet",
     backgroundColor: "#f4f6f3",
     webPreferences: {
       nodeIntegration: false,
@@ -148,7 +152,7 @@ if (!gotSingleInstanceLock) {
       createWindow();
     } catch (error) {
       dialog.showErrorBox(
-        "En Play 启动失败",
+        "EnPet 启动失败",
         error instanceof Error ? (error.stack ?? error.message) : String(error),
       );
       app.quit();

@@ -1,6 +1,6 @@
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
-import type { ImportIssue, SourceEntry } from "@en-play/core";
+import type { ImportIssue, SourceEntry } from "@enpet/core";
 
 const FILE_PATTERN = /^english-words(?:-(\d{3}))?\.md$/;
 const BREAK_PATTERN = /<br\s*\/?>/i;

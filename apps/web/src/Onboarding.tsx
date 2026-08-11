@@ -12,7 +12,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
   const [step, setStep] = useState<OnboardingStep>("welcome");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [vaultPath, setVaultPath] = useState("~/Documents/EnPlay/vault");
+  const [vaultPath, setVaultPath] = useState("~/Documents/EnPet/vault");
   const [hasExistingData, setHasExistingData] = useState(false);
   const [completedSteps, setCompletedSteps] = useState<string[]>([]);
 
@@ -122,7 +122,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
       <div className="onboarding-container">
         <div className="onboarding-card">
           <div className="onboarding-header">
-            <h1>欢迎使用 En Play</h1>
+            <h1>欢迎使用 EnPet</h1>
             <p>让我们用几个简单步骤开始您的英语学习之旅</p>
           </div>
 
@@ -193,12 +193,12 @@ export function Onboarding({ onComplete }: OnboardingProps) {
                   <input
                     type="radio"
                     name="vaultPath"
-                    value="~/Documents/EnPlay/vault"
-                    checked={vaultPath === "~/Documents/EnPlay/vault"}
+                    value="~/Documents/EnPet/vault"
+                    checked={vaultPath === "~/Documents/EnPet/vault"}
                     onChange={(e) => setVaultPath(e.target.value)}
                   />
                   <div>
-                    <strong>~/Documents/EnPlay/vault</strong>
+                    <strong>~/Documents/EnPet/vault</strong>
                     <span>推荐：便于访问和备份，支持iCloud同步</span>
                   </div>
                 </label>
@@ -207,12 +207,12 @@ export function Onboarding({ onComplete }: OnboardingProps) {
                   <input
                     type="radio"
                     name="vaultPath"
-                    value="~/Library/Application Support/En Play/vault"
-                    checked={vaultPath === "~/Library/Application Support/En Play/vault"}
+                    value="~/Library/Application Support/EnPet/vault"
+                    checked={vaultPath === "~/Library/Application Support/EnPet/vault"}
                     onChange={(e) => setVaultPath(e.target.value)}
                   />
                   <div>
-                    <strong>~/Library/Application Support/En Play/vault</strong>
+                    <strong>~/Library/Application Support/EnPet/vault</strong>
                     <span>标准应用数据位置，更隐蔽但安全</span>
                   </div>
                 </label>
@@ -352,7 +352,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
 
             <div className="info-banner" style={{ marginTop: "16px" }}>
               <Info aria-hidden="true" />
-              <p>💡 提示：En Play使用AI生成学习情景，让单词学习更加有趣和高效！</p>
+              <p>💡 提示：EnPet使用AI生成学习情景，让单词学习更加有趣和高效！</p>
             </div>
           </div>
 

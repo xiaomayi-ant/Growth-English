@@ -1,5 +1,5 @@
-appId: com.enplay.app
-productName: En Play
+appId: com.enpet.app
+productName: EnPet
 directories:
   output: release
 files:

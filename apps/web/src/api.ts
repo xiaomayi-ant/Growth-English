@@ -1,4 +1,4 @@
-import type { ImportSummary, Rating, ReviewQueue, StudySession } from "@en-play/core";
+import type { ImportSummary, Rating, ReviewQueue, StudySession } from "@enpet/core";
 
 interface HealthResponse {
   status: string;
@@ -56,7 +56,7 @@ export const api = {
   setupVault: (vaultPath?: string) =>
     request<{ success: boolean; message: string }>("/api/onboarding/setup-vault", {
       method: "POST",
-      body: JSON.stringify({ vaultPath: vaultPath || "~/Documents/EnPlay/vault" }),
+      body: JSON.stringify({ vaultPath: vaultPath || "~/Documents/EnPet/vault" }),
     }),
   importVocabulary: () =>
     request<ImportSummary>("/api/import", {

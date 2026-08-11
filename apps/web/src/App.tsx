@@ -1,4 +1,4 @@
-import type { Rating, ReviewQueue, SessionItem, SessionStatus, StudySession } from "@en-play/core";
+import type { Rating, ReviewQueue, SessionItem, SessionStatus, StudySession } from "@enpet/core";
 import {
   BookOpen,
   Check,
@@ -367,7 +367,7 @@ export default function App() {
       setQueue(nextQueue);
       setHistory(nextHistory.sessions);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "无法连接 En Play 服务");
+      setError(cause instanceof Error ? cause.message : "无法连接 EnPet 服务");
     } finally {
       setLoading(false);
     }
@@ -397,7 +397,7 @@ export default function App() {
             <div className="brand-block">
               <div className="brand-mark">EN</div>
               <div>
-                <strong>En Play</strong>
+                <strong>EnPet</strong>
                 <span>Vocabulary Studio</span>
               </div>
             </div>

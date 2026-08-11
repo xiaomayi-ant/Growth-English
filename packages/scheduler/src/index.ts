@@ -1,6 +1,6 @@
-import { isWeekend, type Rating, type StudySession } from "@en-play/core";
-import type { EnPlayDatabase } from "@en-play/database";
-import type { AnswerEvaluator, ContentGenerator } from "@en-play/evaluation";
+import { isWeekend, type Rating, type StudySession } from "@enpet/core";
+import type { EnPetDatabase } from "@enpet/database";
+import type { AnswerEvaluator, ContentGenerator } from "@enpet/evaluation";
 
 const ratingLabels: Record<Rating, string> = {
   again: "忘记",
@@ -17,7 +17,7 @@ function formatEvaluationFeedback(
 
 export class StudyService {
   constructor(
-    private readonly database: EnPlayDatabase,
+    private readonly database: EnPetDatabase,
     private readonly contentGenerator: ContentGenerator,
     private readonly answerEvaluator: AnswerEvaluator,
     private readonly newWordsPerDay: number,

@@ -104,7 +104,7 @@ export function Settings({ onClose }: SettingsProps) {
                 type="text"
                 value={settings.vocabDir}
                 readOnly
-                placeholder="~/Library/Application Support/En Play/vault"
+                placeholder="~/Library/Application Support/EnPet/vault"
               />
             </div>
           </section>

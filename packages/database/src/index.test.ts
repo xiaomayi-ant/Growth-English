@@ -1,6 +1,6 @@
-import type { Rating, ScenarioContent, SourceEntry } from "@en-play/core";
+import type { Rating, ScenarioContent, SourceEntry } from "@enpet/core";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { EnPlayDatabase } from "./index.js";
+import { EnPetDatabase } from "./index.js";
 
 function entries(count = 6): SourceEntry[] {
   return Array.from({ length: count }, (_, index) => ({
@@ -16,11 +16,11 @@ function entries(count = 6): SourceEntry[] {
   }));
 }
 
-describe("EnPlayDatabase", () => {
-  let database: EnPlayDatabase;
+describe("EnPetDatabase", () => {
+  let database: EnPetDatabase;
 
   beforeEach(async () => {
-    database = await EnPlayDatabase.open(":memory:");
+    database = await EnPetDatabase.open(":memory:");
   });
 
   afterEach(() => database.close());

@@ -1,8 +1,15 @@
-import { readFileSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { existsSync, readFileSync } from "node:fs";
+import { cp, mkdir, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { z } from "zod";
+
+// 项目原名 En Play，改名为 EnPet 后仍需接管旧数据目录与旧环境变量
+const APP_DIR_NAME = "EnPet";
+const LEGACY_APP_DIR_NAME = "En Play";
+const DATABASE_FILE = "enpet.sqlite3";
+const LEGACY_DATABASE_FILE = "en-play.sqlite3";
+const MIGRATION_MARKER = ".migrated-from-en-play";
 
 const configSchema = z.object({
   host: z.string().min(1),
@@ -29,8 +36,45 @@ export const editableSettingsSchema = z.object({
 
 export type EditableSettings = z.infer<typeof editableSettingsSchema>;
 
+function applicationSupportDir(): string {
+  return path.join(os.homedir(), "Library", "Application Support");
+}
+
 function defaultDataDir(): string {
-  return path.join(os.homedir(), "Library", "Application Support", "En Play");
+  return path.join(applicationSupportDir(), APP_DIR_NAME);
+}
+
+function legacyDataDir(): string {
+  return path.join(applicationSupportDir(), LEGACY_APP_DIR_NAME);
+}
+
+// 改名前的数据目录一次性复制到 EnPet 目录，旧目录原样保留，便于回退到旧版本。
+// 必须在 loadConfig 之前调用；标记文件保证只搬一次。
+export async function migrateLegacyDataDir(): Promise<void> {
+  const dataDir = defaultDataDir();
+  const legacyDir = legacyDataDir();
+  if (!existsSync(legacyDir) || existsSync(path.join(dataDir, MIGRATION_MARKER))) return;
+
+  await mkdir(dataDir, { recursive: true });
+
+  // WAL 模式下数据主要在 -wal 文件中，三个文件必须一起复制才完整
+  for (const suffix of ["", "-wal", "-shm"]) {
+    const source = path.join(legacyDir, `${LEGACY_DATABASE_FILE}${suffix}`);
+    const target = path.join(dataDir, `${DATABASE_FILE}${suffix}`);
+    if (existsSync(source) && !existsSync(target)) {
+      await cp(source, target);
+    }
+  }
+
+  for (const entry of ["settings.json", "vault"]) {
+    const source = path.join(legacyDir, entry);
+    const target = path.join(dataDir, entry);
+    if (existsSync(source) && !existsSync(target)) {
+      await cp(source, target, { recursive: true });
+    }
+  }
+
+  await writeFile(path.join(dataDir, MIGRATION_MARKER), `${new Date().toISOString()}\n`, "utf8");
 }
 
 export function defaultEditableSettings(): EditableSettings {
@@ -89,11 +133,16 @@ export async function writeSettingsFile(
   );
 }
 
+// 改名前的 EN_PLAY_* 变量作为回退保留，旧 .env 不改也能启动
+function readEnv(env: NodeJS.ProcessEnv, suffix: string): string | undefined {
+  return env[`ENPET_${suffix}`] ?? env[`EN_PLAY_${suffix}`];
+}
+
 // 加载优先级：默认值 < 设置文件（databasePath 同目录的 settings.json）< 环境变量
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const dataDir = defaultDataDir();
   const vaultDir = path.join(dataDir, "vault");
-  const databasePath = env.EN_PLAY_DATABASE_PATH ?? path.join(dataDir, "en-play.sqlite3");
+  const databasePath = readEnv(env, "DATABASE_PATH") ?? path.join(dataDir, DATABASE_FILE);
   const saved = readSettingsFile(settingsPathForDatabasePath(databasePath));
 
   // 过滤掉 undefined 值，避免类型错误
@@ -105,17 +154,17 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   }
 
   return configSchema.parse({
-    host: env.EN_PLAY_HOST ?? "127.0.0.1",
-    port: Number(env.EN_PLAY_PORT ?? 4173),
-    timeZone: env.EN_PLAY_TIMEZONE ?? "Asia/Shanghai",
-    vocabDir: env.EN_PLAY_VOCAB_DIR ?? filteredSaved.vocabDir ?? vaultDir,
+    host: readEnv(env, "HOST") ?? "127.0.0.1",
+    port: Number(readEnv(env, "PORT") ?? 4173),
+    timeZone: readEnv(env, "TIMEZONE") ?? "Asia/Shanghai",
+    vocabDir: readEnv(env, "VOCAB_DIR") ?? filteredSaved.vocabDir ?? vaultDir,
     databasePath,
-    reportsDir: env.EN_PLAY_REPORTS_DIR ?? path.join(vaultDir, "study", "reports"),
+    reportsDir: readEnv(env, "REPORTS_DIR") ?? path.join(vaultDir, "study", "reports"),
     reviewQueuePath:
-      env.EN_PLAY_REVIEW_QUEUE_PATH ?? path.join(vaultDir, "study", "review-queue.md"),
-    newWordsPerDay: Number(env.EN_PLAY_NEW_WORDS_PER_DAY ?? filteredSaved.newWordsPerDay ?? 6),
-    reviewLimit: Number(env.EN_PLAY_REVIEW_LIMIT ?? filteredSaved.reviewLimit ?? 30),
-    reminderTime: env.EN_PLAY_REMINDER_TIME ?? filteredSaved.reminderTime ?? "09:00",
+      readEnv(env, "REVIEW_QUEUE_PATH") ?? path.join(vaultDir, "study", "review-queue.md"),
+    newWordsPerDay: Number(readEnv(env, "NEW_WORDS_PER_DAY") ?? filteredSaved.newWordsPerDay ?? 6),
+    reviewLimit: Number(readEnv(env, "REVIEW_LIMIT") ?? filteredSaved.reviewLimit ?? 30),
+    reminderTime: readEnv(env, "REMINDER_TIME") ?? filteredSaved.reminderTime ?? "09:00",
   });
 }
 

@@ -1,7 +1,7 @@
-import type { AppConfig, ScenarioContent, SourceEntry } from "@en-play/core";
-import type { ContentGenerator } from "@en-play/evaluation";
+import type { AppConfig, ScenarioContent, SourceEntry } from "@enpet/core";
+import type { ContentGenerator } from "@enpet/evaluation";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { buildApp, type EnPlayApp } from "./app.js";
+import { buildApp, type EnPetApp } from "./app.js";
 
 class TestGenerator implements ContentGenerator {
   async generateScenario(candidates: SourceEntry[], count: number): Promise<ScenarioContent> {
@@ -16,7 +16,7 @@ class TestGenerator implements ContentGenerator {
 }
 
 describe("API", () => {
-  let app: EnPlayApp;
+  let app: EnPetApp;
 
   beforeEach(async () => {
     const config: AppConfig = {
@@ -25,14 +25,14 @@ describe("API", () => {
       timeZone: "Asia/Shanghai",
       vocabDir: "/tmp/does-not-matter",
       databasePath: ":memory:",
-      reportsDir: "/tmp/en-play-test/reports",
-      reviewQueuePath: "/tmp/en-play-test/review-queue.md",
+      reportsDir: "/tmp/enpet-test/reports",
+      reviewQueuePath: "/tmp/enpet-test/review-queue.md",
       newWordsPerDay: 6,
       reviewLimit: 30,
       reminderTime: "09:00",
     };
     app = await buildApp(config, new TestGenerator());
-    app.enPlayDatabase.importEntries(
+    app.enPetDatabase.importEntries(
       Array.from({ length: 6 }, (_, index) => ({
         id: `f001-r001-c0${index + 1}`,
         fileIndex: 1,
@@ -92,15 +92,15 @@ describe("API", () => {
         timeZone: "Asia/Shanghai",
         vocabDir: "/tmp/does-not-matter",
         databasePath: ":memory:",
-        reportsDir: "/tmp/en-play-test/reports",
-        reviewQueuePath: "/tmp/en-play-test/review-queue.md",
+        reportsDir: "/tmp/enpet-test/reports",
+        reviewQueuePath: "/tmp/enpet-test/review-queue.md",
         newWordsPerDay: 3,
         reviewLimit: 30,
         reminderTime: "09:00",
       },
       new TestGenerator(),
     );
-    limited.enPlayDatabase.importEntries(
+    limited.enPetDatabase.importEntries(
       Array.from({ length: 6 }, (_, index) => ({
         id: `f001-r001-c0${index + 1}`,
         fileIndex: 1,
@@ -150,6 +150,6 @@ describe("API", () => {
         item.feedback?.includes("自动批改"),
       ),
     ).toBe(true);
-    expect(app.enPlayDatabase.getReviewQueue("2026-07-07").dueToday).toHaveLength(6);
+    expect(app.enPetDatabase.getReviewQueue("2026-07-07").dueToday).toHaveLength(6);
   });
 });

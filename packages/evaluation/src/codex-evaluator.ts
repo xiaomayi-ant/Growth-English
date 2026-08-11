@@ -1,6 +1,6 @@
 import { exec } from "node:child_process";
 import { promisify } from "node:util";
-import type { EvaluationResult, SourceEntry } from "@en-play/core";
+import type { EvaluationResult, SourceEntry } from "@enpet/core";
 
 const execAsync = promisify(exec);
 

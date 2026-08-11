@@ -1,18 +1,18 @@
-# En Play 架构设计
+# EnPet 架构设计
 
 ## 1. 文档状态
 
 - 状态：初稿
-- 项目目录：`/Users/linctex/Projects/cloned/en-play`
-- 词库目录：`~/Library/Application Support/En Play/vault`（默认值，可用 `EN_PLAY_VOCAB_DIR` 覆盖）
+- 项目目录：`/Users/linctex/Projects/cloned/enpet`
+- 词库目录：`~/Library/Application Support/EnPet/vault`（默认值，可用 `ENPET_VOCAB_DIR` 覆盖）
 - 主要运行环境：macOS 桌面端
 - 最终学习入口：Obsidian 内嵌的本地 Web 界面
 
-本文定义 En Play 的系统边界、数据归属、学习流程和首期实现范围。当前只描述架构，不代表已经开始实现。
+本文定义 EnPet 的系统边界、数据归属、学习流程和首期实现范围。当前只描述架构，不代表已经开始实现。
 
 ## 2. 目标
 
-En Play 用于把 Obsidian 中持续收集的英语词条转化为有限周期、可交互、可追踪的学习过程。
+EnPet 用于把 Obsidian 中持续收集的英语词条转化为有限周期、可交互、可追踪的学习过程。
 
 系统需要满足以下目标：
 
@@ -41,16 +41,16 @@ En Play 用于把 Obsidian 中持续收集的英语词条转化为有限周期�
 
 ### 4.1 项目是主体，Skill 是可选适配层
 
-En Play 是一个独立项目。项目拥有应用代码、数据库、学习规则、前端、测试和运行脚本。
+EnPet 是一个独立项目。项目拥有应用代码、数据库、学习规则、前端、测试和运行脚本。
 
 未来可以增加一个 Codex Skill，用于告诉 Codex 如何调用项目命令、生成学习内容和处理开放式答案。Skill 不保存用户状态，也不承载前端。
 
 ### 4.2 SQLite 是学习状态的唯一事实来源
 
-学习状态默认保存在用户数据目录中（可用 `EN_PLAY_DATABASE_PATH` 覆盖）：
+学习状态默认保存在用户数据目录中（可用 `ENPET_DATABASE_PATH` 覆盖）：
 
 ```text
-~/Library/Application Support/En Play/en-play.sqlite3
+~/Library/Application Support/EnPet/enpet.sqlite3
 ```
 
 SQLite 保存：
@@ -71,7 +71,7 @@ SQLite 不放进 Skill 目录，也不依赖 Codex 对话上下文。
 Obsidian 承担两项职责：
 
 1. `english-words*.md` 是只读词库来源。
-2. 一篇固定的 Obsidian 页面嵌入 En Play 的本地 Web 界面。
+2. 一篇固定的 Obsidian 页面嵌入 EnPet 的本地 Web 界面。
 
 学习状态不写回原始词表。系统会把每日结果导出成 Markdown，供用户在 Obsidian 中阅读、搜索和回顾。该文件是某次学习会话的只读快照，不参与后续调度，也不能完整恢复数据库。
 
@@ -79,9 +79,9 @@ Obsidian 承担两项职责：
 
 | 数据 | 保存位置 | 用途 |
 | --- | --- | --- |
-| 原始词库 | `~/Library/Application Support/En Play/vault/english-words*.md` | Hammerspoon 持续收词，En Play 只读 |
-| 学习状态 | `~/Library/Application Support/En Play/en-play.sqlite3` | 应用读取和更新，记录已学位置、复习轮次、评分与进度 |
-| 每日阅读归档 | `~/Library/Application Support/En Play/vault/study/reports/YYYY-MM-DD.md` | 给用户和 Obsidian 使用，便于阅读、搜索和回顾 |
+| 原始词库 | `~/Library/Application Support/EnPet/vault/english-words*.md` | Hammerspoon 持续收词，EnPet 只读 |
+| 学习状态 | `~/Library/Application Support/EnPet/enpet.sqlite3` | 应用读取和更新，记录已学位置、复习轮次、评分与进度 |
+| 每日阅读归档 | `~/Library/Application Support/EnPet/vault/study/reports/YYYY-MM-DD.md` | 给用户和 Obsidian 使用，便于阅读、搜索和回顾 |
 
 真正的数据备份必须针对 SQLite 文件，通过 SQLite 的一致性备份机制生成到项目的 `backups/` 目录。每日 Markdown 归档不承担数据库备份职责。
 
@@ -108,7 +108,7 @@ Obsidian 使用受控的网页嵌入方式加载该地址。相同界面也可�
 
 1. esbuild 把 Fastify 服务端（含全部 workspace 包）打成单文件 CJS bundle，在 Electron 主进程内监听 `127.0.0.1` 的空闲端口。
 2. 前端构建产物作为 `extraResources` 随包携带，由 `@fastify/static` 托管；`BrowserWindow` 加载 loopback 地址（前端 API 全部走相对路径，天然适配）。
-3. 数据库位于系统用户目录 `~/Library/Application Support/En Play/en-play.sqlite3`；首次启动把旧项目路径的数据库（含 WAL 文件）一次性迁移过来。
+3. 数据库位于系统用户目录 `~/Library/Application Support/EnPet/enpet.sqlite3`；首次启动把旧项目路径的数据库（含 WAL 文件）一次性迁移过来。
 4. `node:sqlite` 是 Node 内置模块，Electron 内置 Node 直接可用，无原生模块重编译。
 5. electron-builder 产出未签名 dmg（自用）；GitHub Actions 在推送 `v*` tag 时自动构建并发布到 Releases。苹果签名与公证在需要对外分发时再引入。
 
@@ -284,10 +284,10 @@ D21 最终评估
 
 ### 6.6 Markdown 报告导出器
 
-报告导出器把每日会话摘要写入（默认位于 vault 内，可用 `EN_PLAY_REPORTS_DIR` 覆盖）：
+报告导出器把每日会话摘要写入（默认位于 vault 内，可用 `ENPET_REPORTS_DIR` 覆盖）：
 
 ```text
-~/Library/Application Support/En Play/vault/study/reports/YYYY-MM-DD.md
+~/Library/Application Support/EnPet/vault/study/reports/YYYY-MM-DD.md
 ```
 
 报告可包含：
@@ -305,7 +305,7 @@ D21 最终评估
 为了让待复习词在 Obsidian 文件列表和搜索中也可见，系统可以额外维护一份可重复生成的队列快照：
 
 ```text
-~/Library/Application Support/En Play/vault/study/review-queue.md
+~/Library/Application Support/EnPet/vault/study/review-queue.md
 ```
 
 该页面显示逾期、今日到期和近期将到期的词条，并注明来源文档、轮次和日期。它的数据仍然来自 SQLite；每次新词任务、复习任务或手动刷新后覆盖生成。删除或编辑它不会改变真实复习状态。
@@ -463,7 +463,7 @@ GET  /api/health
 ## 12. 建议目录结构
 
 ```text
-en-play/
+enpet/
 ├── ARCHITECTURE.md
 ├── package.json
 ├── apps/

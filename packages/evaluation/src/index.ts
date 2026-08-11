@@ -1,4 +1,4 @@
-import type { EvaluationResult, ScenarioContent, SourceEntry } from "@en-play/core";
+import type { EvaluationResult, ScenarioContent, SourceEntry } from "@enpet/core";
 import { CodexContentGenerator } from "./codex.js";
 import { CodexAnswerEvaluator } from "./codex-evaluator.js";
 

@@ -14,7 +14,7 @@ import {
   type SessionType,
   type SourceEntry,
   type StudySession,
-} from "@en-play/core";
+} from "@enpet/core";
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS schema_versions (
@@ -135,20 +135,20 @@ function ratingOrNull(value: unknown): Rating | null {
     : null;
 }
 
-export class EnPlayDatabase {
+export class EnPetDatabase {
   readonly connection: DatabaseSync;
 
   private constructor(connection: DatabaseSync) {
     this.connection = connection;
   }
 
-  static async open(databasePath: string): Promise<EnPlayDatabase> {
+  static async open(databasePath: string): Promise<EnPetDatabase> {
     if (databasePath !== ":memory:") {
       await mkdir(path.dirname(databasePath), { recursive: true });
     }
     const connection = new DatabaseSync(databasePath, { enableForeignKeyConstraints: true });
     connection.exec("PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;");
-    const database = new EnPlayDatabase(connection);
+    const database = new EnPetDatabase(connection);
     database.migrate();
     return database;
   }

@@ -1,6 +1,6 @@
 import { mkdir, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
-import type { ReviewQueue, StudySession } from "@en-play/core";
+import type { ReviewQueue, StudySession } from "@enpet/core";
 
 async function atomicWrite(targetPath: string, content: string): Promise<void> {
   await mkdir(path.dirname(targetPath), { recursive: true });
@@ -29,7 +29,7 @@ export function renderReviewQueue(queue: ReviewQueue): string {
     "",
     `更新时间：${queue.today}`,
     "",
-    "> 此页面由 En Play 从 SQLite 自动生成。修改本文件不会改变复习状态。",
+    "> 此页面由 EnPet 从 SQLite 自动生成。修改本文件不会改变复习状态。",
     "",
     renderSection("逾期", queue.overdue),
     "",

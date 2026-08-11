@@ -26,7 +26,7 @@ importers:
 
   apps/desktop:
     dependencies:
-      '@en-play/core':
+      '@enpet/core':
         specifier: workspace:*
         version: link:../../packages/core
     devDependencies:
@@ -42,22 +42,22 @@ importers:
 
   apps/server:
     dependencies:
-      '@en-play/core':
+      '@enpet/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@en-play/database':
+      '@enpet/database':
         specifier: workspace:*
         version: link:../../packages/database
-      '@en-play/evaluation':
+      '@enpet/evaluation':
         specifier: workspace:*
         version: link:../../packages/evaluation
-      '@en-play/reporting':
+      '@enpet/reporting':
         specifier: workspace:*
         version: link:../../packages/reporting
-      '@en-play/scheduler':
+      '@enpet/scheduler':
         specifier: workspace:*
         version: link:../../packages/scheduler
-      '@en-play/vocabulary-import':
+      '@enpet/vocabulary-import':
         specifier: workspace:*
         version: link:../../packages/vocabulary-import
       '@fastify/cors':
@@ -79,7 +79,7 @@ importers:
 
   apps/web:
     dependencies:
-      '@en-play/core':
+      '@enpet/core':
         specifier: workspace:*
         version: link:../../packages/core
       lucide-react:
@@ -116,34 +116,34 @@ importers:
 
   packages/database:
     dependencies:
-      '@en-play/core':
+      '@enpet/core':
         specifier: workspace:*
         version: link:../core
 
   packages/evaluation:
     dependencies:
-      '@en-play/core':
+      '@enpet/core':
         specifier: workspace:*
         version: link:../core
 
   packages/reporting:
     dependencies:
-      '@en-play/core':
+      '@enpet/core':
         specifier: workspace:*
         version: link:../core
-      '@en-play/database':
+      '@enpet/database':
         specifier: workspace:*
         version: link:../database
 
   packages/scheduler:
     dependencies:
-      '@en-play/core':
+      '@enpet/core':
         specifier: workspace:*
         version: link:../core
-      '@en-play/database':
+      '@enpet/database':
         specifier: workspace:*
         version: link:../database
-      '@en-play/evaluation':
+      '@enpet/evaluation':
         specifier: workspace:*
         version: link:../evaluation
       date-fns:
@@ -152,7 +152,7 @@ importers:
 
   packages/vocabulary-import:
     dependencies:
-      '@en-play/core':
+      '@enpet/core':
         specifier: workspace:*
         version: link:../core
 

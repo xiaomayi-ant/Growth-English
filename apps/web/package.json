@@ -1,5 +1,5 @@
 {
-  "name": "@en-play/web",
+  "name": "@enpet/web",
   "version": "0.0.3",
   "private": true,
   "type": "module",
@@ -9,7 +9,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@en-play/core": "workspace:*",
+    "@enpet/core": "workspace:*",
     "lucide-react": "^0.562.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3"

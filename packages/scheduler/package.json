@@ -1,5 +1,5 @@
 {
-  "name": "@en-play/scheduler",
+  "name": "@enpet/scheduler",
   "version": "0.0.3",
   "private": true,
   "type": "module",
@@ -8,9 +8,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@en-play/core": "workspace:*",
-    "@en-play/database": "workspace:*",
-    "@en-play/evaluation": "workspace:*",
+    "@enpet/core": "workspace:*",
+    "@enpet/database": "workspace:*",
+    "@enpet/evaluation": "workspace:*",
     "date-fns": "^4.1.0"
   }
 }

@@ -1,8 +1,8 @@
 import { access } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { type AppConfig, todayInTimeZone, createDefaultVaultStructure, detectOnboardingState, TaskScheduler } from "@en-play/core";
-import { EnPlayDatabase } from "@en-play/database";
+import { type AppConfig, todayInTimeZone, createDefaultVaultStructure, detectOnboardingState, TaskScheduler } from "@enpet/core";
+import { EnPetDatabase } from "@enpet/database";
 import {
   type AnswerEvaluator,
   type ContentGenerator,
@@ -10,10 +10,10 @@ import {
   CodexAnswerEvaluator,
   DeterministicAnswerEvaluator,
   DeterministicContentGenerator,
-} from "@en-play/evaluation";
-import { writeDailyReport, writeReviewQueue } from "@en-play/reporting";
-import { StudyService } from "@en-play/scheduler";
-import { loadVocabulary, VocabImportError } from "@en-play/vocabulary-import";
+} from "@enpet/evaluation";
+import { writeDailyReport, writeReviewQueue } from "@enpet/reporting";
+import { StudyService } from "@enpet/scheduler";
+import { loadVocabulary, VocabImportError } from "@enpet/vocabulary-import";
 import cors from "@fastify/cors";
 import fastifyStatic from "@fastify/static";
 import Fastify, { type FastifyInstance } from "fastify";
@@ -32,8 +32,8 @@ const itemBodySchema = z.object({
 });
 
 function webDistPath(): string {
-  if (process.env.EN_PLAY_WEB_DIST) {
-    return path.resolve(process.env.EN_PLAY_WEB_DIST);
+  if (process.env.ENPET_WEB_DIST) {
+    return path.resolve(process.env.ENPET_WEB_DIST);
   }
   const directory = path.dirname(fileURLToPath(import.meta.url));
   return path.resolve(directory, "../../web/dist");
@@ -50,7 +50,7 @@ async function exists(targetPath: string): Promise<boolean> {
 
 async function refreshDerivedFiles(
   config: AppConfig,
-  database: EnPlayDatabase,
+  database: EnPetDatabase,
   date: string,
 ): Promise<void> {
   await writeReviewQueue(config.reviewQueuePath, database.getReviewQueue(date));
@@ -60,15 +60,15 @@ async function refreshDerivedFiles(
   }
 }
 
-export interface EnPlayApp extends FastifyInstance {
-  enPlayDatabase: EnPlayDatabase;
+export interface EnPetApp extends FastifyInstance {
+  enPetDatabase: EnPetDatabase;
 }
 
 export async function buildApp(
   config: AppConfig,
   contentGenerator?: ContentGenerator,
   answerEvaluator?: AnswerEvaluator,
-): Promise<EnPlayApp> {
+): Promise<EnPetApp> {
   // 如果没有提供contentGenerator，尝试使用Codex，否则回退到确定性实现
   let generator: ContentGenerator;
   if (!contentGenerator) {
@@ -100,9 +100,9 @@ export async function buildApp(
   } else {
     evaluator = answerEvaluator;
   }
-  const app = Fastify({ logger: true }) as unknown as EnPlayApp;
-  const database = await EnPlayDatabase.open(config.databasePath);
-  app.enPlayDatabase = database;
+  const app = Fastify({ logger: true }) as unknown as EnPetApp;
+  const database = await EnPetDatabase.open(config.databasePath);
+  app.enPetDatabase = database;
   const taskScheduler = new TaskScheduler(config);
   const studyService = new StudyService(
     database,
@@ -157,7 +157,7 @@ export async function buildApp(
 
   app.post("/api/onboarding/setup-vault", async (request) => {
     const body = z.object({ vaultPath: z.string().optional() }).parse(request.body || {});
-    const vaultPath = body.vaultPath || "~/Documents/EnPlay/vault";
+    const vaultPath = body.vaultPath || "~/Documents/EnPet/vault";
 
     try {
       // 展开用户提供的路径
@@ -216,7 +216,7 @@ export async function buildApp(
     const targetPath = path.resolve(
       path.dirname(config.databasePath),
       "../backups",
-      `en-play-${date}.sqlite3`,
+      `enpet-${date}.sqlite3`,
     );
     const pages = await database.createBackup(targetPath);
     return { targetPath, pages };

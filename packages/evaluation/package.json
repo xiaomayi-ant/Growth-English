@@ -1,5 +1,5 @@
 {
-  "name": "@en-play/evaluation",
+  "name": "@enpet/evaluation",
   "version": "0.0.3",
   "private": true,
   "type": "module",
@@ -8,6 +8,6 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@en-play/core": "workspace:*"
+    "@enpet/core": "workspace:*"
   }
 }
