@@ -1,16 +1,16 @@
-import type { ImportSummary, Rating, ReviewQueue, StudySession } from "@enpet/core";
+import type {
+  ImportSummary,
+  OnboardingState,
+  Rating,
+  ReviewQueue,
+  StudySession,
+} from "@enpet/core";
 
 interface HealthResponse {
   status: string;
   today: string;
   sourceEntries: number;
   currentFileIndex: number | null;
-}
-
-interface OnboardingState {
-  step: "welcome" | "vault-config" | "hammerspoon-setup" | "complete";
-  vocabDirConfigured: boolean;
-  hammerspoonDetected: boolean;
 }
 
 interface ApiError {
