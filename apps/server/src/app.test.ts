@@ -1,7 +1,25 @@
+import { existsSync } from "node:fs";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import type { AppConfig, ScenarioContent, SourceEntry } from "@enpet/core";
 import type { ContentGenerator } from "@enpet/evaluation";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { buildApp, type EnPetApp } from "./app.js";
+
+const baseConfig: AppConfig = {
+  host: "127.0.0.1",
+  port: 4173,
+  timeZone: "Asia/Shanghai",
+  vocabDir: "/tmp/does-not-matter",
+  vocabFilePrefix: "english-words",
+  databasePath: ":memory:",
+  reportsDir: "/tmp/enpet-test/reports",
+  reviewQueuePath: "/tmp/enpet-test/review-queue.md",
+  newWordsPerDay: 6,
+  reviewLimit: 30,
+  reminderTime: "09:00",
+};
 
 class TestGenerator implements ContentGenerator {
   async generateScenario(candidates: SourceEntry[], count: number): Promise<ScenarioContent> {
@@ -19,19 +37,7 @@ describe("API", () => {
   let app: EnPetApp;
 
   beforeEach(async () => {
-    const config: AppConfig = {
-      host: "127.0.0.1",
-      port: 4173,
-      timeZone: "Asia/Shanghai",
-      vocabDir: "/tmp/does-not-matter",
-      databasePath: ":memory:",
-      reportsDir: "/tmp/enpet-test/reports",
-      reviewQueuePath: "/tmp/enpet-test/review-queue.md",
-      newWordsPerDay: 6,
-      reviewLimit: 30,
-      reminderTime: "09:00",
-    };
-    app = await buildApp(config, new TestGenerator());
+    app = await buildApp({ ...baseConfig }, new TestGenerator());
     app.enPetDatabase.importEntries(
       Array.from({ length: 6 }, (_, index) => ({
         id: `f001-r001-c0${index + 1}`,
@@ -50,6 +56,40 @@ describe("API", () => {
   });
 
   afterEach(async () => app.close());
+
+  // 目录存在但还没有词库文件是首次使用的正常状态，不能当成失败
+  it("reports an empty import instead of failing when the directory has no vocabulary files", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "enpet-empty-vocab-"));
+    const empty = await buildApp({ ...baseConfig, vocabDir: directory }, new TestGenerator());
+    try {
+      const response = await empty.inject({ method: "POST", url: "/api/import" });
+      expect(response.statusCode).toBe(200);
+      const body = response.json();
+      expect(body.files).toBe(0);
+      expect(body.inserted).toBe(0);
+      expect(body.message).toContain("english-words");
+    } finally {
+      await empty.close();
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("writes the onboarding marker so the wizard stops replaying", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "enpet-onboarding-"));
+    const databasePath = path.join(directory, "enpet.sqlite3");
+    const scoped = await buildApp({ ...baseConfig, databasePath }, new TestGenerator());
+    try {
+      expect((await scoped.inject({ method: "GET", url: "/api/onboarding" })).json().step).not.toBe(
+        "complete",
+      );
+      const response = await scoped.inject({ method: "POST", url: "/api/onboarding/complete" });
+      expect(response.statusCode).toBe(200);
+      expect(existsSync(path.join(directory, ".onboarding-complete"))).toBe(true);
+    } finally {
+      await scoped.close();
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
 
   it("returns 400 with a readable message when the vocabulary directory is missing", async () => {
     const response = await app.inject({ method: "POST", url: "/api/import" });
@@ -85,21 +125,7 @@ describe("API", () => {
   });
 
   it("limits new learning sessions to the configured newWordsPerDay", async () => {
-    const limited = await buildApp(
-      {
-        host: "127.0.0.1",
-        port: 4173,
-        timeZone: "Asia/Shanghai",
-        vocabDir: "/tmp/does-not-matter",
-        databasePath: ":memory:",
-        reportsDir: "/tmp/enpet-test/reports",
-        reviewQueuePath: "/tmp/enpet-test/review-queue.md",
-        newWordsPerDay: 3,
-        reviewLimit: 30,
-        reminderTime: "09:00",
-      },
-      new TestGenerator(),
-    );
+    const limited = await buildApp({ ...baseConfig, newWordsPerDay: 3 }, new TestGenerator());
     limited.enPetDatabase.importEntries(
       Array.from({ length: 6 }, (_, index) => ({
         id: `f001-r001-c0${index + 1}`,

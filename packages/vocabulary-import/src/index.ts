@@ -2,10 +2,17 @@ import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import type { ImportIssue, SourceEntry } from "@enpet/core";
 
-const FILE_PATTERN = /^english-words(?:-(\d{3}))?\.md$/;
 const BREAK_PATTERN = /<br\s*\/?>/i;
 
-export type VocabImportErrorCode = "VOCAB_DIR_NOT_FOUND" | "VOCAB_DIR_EMPTY" | "VOCAB_FILES_MISSING";
+export const DEFAULT_FILE_PREFIX = "english-words";
+
+// 前缀可自定义，序号后缀（-002）仍然决定 fileIndex 和学习顺序
+function filePattern(prefix: string): RegExp {
+  const escaped = prefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`^${escaped}(?:-(\\d{3}))?\\.md$`);
+}
+
+export type VocabImportErrorCode = "VOCAB_DIR_NOT_FOUND";
 
 export class VocabImportError extends Error {
   readonly code: VocabImportErrorCode;
@@ -118,11 +125,15 @@ export function parseVocabularyMarkdown(
   return { entries, issues, files: 1 };
 }
 
-export async function discoverVocabularyFiles(directory: string): Promise<VocabularyFile[]> {
+export async function discoverVocabularyFiles(
+  directory: string,
+  prefix: string = DEFAULT_FILE_PREFIX,
+): Promise<VocabularyFile[]> {
+  const pattern = filePattern(prefix);
   const names = await readdir(directory);
   return names
     .flatMap((name) => {
-      const match = FILE_PATTERN.exec(name);
+      const match = pattern.exec(name);
       if (!match) return [];
       return [
         {
@@ -134,36 +145,28 @@ export async function discoverVocabularyFiles(directory: string): Promise<Vocabu
     .sort((left, right) => left.fileIndex - right.fileIndex);
 }
 
-export async function loadVocabulary(directory: string): Promise<ParsedVocabulary> {
+export async function loadVocabulary(
+  directory: string,
+  prefix: string = DEFAULT_FILE_PREFIX,
+): Promise<ParsedVocabulary> {
   let files: VocabularyFile[];
   try {
-    files = await discoverVocabularyFiles(directory);
+    files = await discoverVocabularyFiles(directory, prefix);
   } catch (cause) {
     const code = (cause as NodeJS.ErrnoException).code;
     if (code === "ENOENT" || code === "ENOTDIR") {
-      throw new VocabImportError(
-        "VOCAB_DIR_NOT_FOUND",
-        `词库目录不存在或不是目录: ${directory}`,
-        [
-          "请检查路径设置是否正确",
-          "确保目录已创建并且有访问权限",
-          "您可以在设置中修改词库路径",
-          "首次使用请运行首次设置向导",
-        ],
-      );
+      throw new VocabImportError("VOCAB_DIR_NOT_FOUND", `词库目录不存在或不是目录: ${directory}`, [
+        "请检查路径设置是否正确",
+        "确保目录已创建并且有访问权限",
+        "您可以在设置中修改词库路径",
+        "首次使用请运行首次设置向导",
+      ]);
     }
     throw cause;
   }
+  // 空目录是首次使用的正常状态，不是错误；调用方看 files === 0 自行决定怎么提示
   if (files.length === 0) {
-    throw new VocabImportError(
-      "VOCAB_DIR_EMPTY",
-      `词库目录中没有找到 english-words*.md 文件: ${directory}`,
-      [
-        "请确保词库文件存在，文件名应为 english-words.md 或 english-words-001.md 等",
-        "首次使用建议先运行首次设置向导创建示例词库",
-        "如已有词库文件，请检查文件命名格式是否正确",
-      ],
-    );
+    return { entries: [], issues: [], files: 0 };
   }
   const parsed = await Promise.all(
     files.map(async (file) =>

@@ -8,11 +8,18 @@ interface OnboardingProps {
 
 type OnboardingStep = "welcome" | "setup" | "import" | "first-lesson" | "complete";
 
+const PRESET_PATHS = [
+  "~/Documents/EnPet/vault",
+  "~/Library/Application Support/EnPet/vault",
+];
+
 export function Onboarding({ onComplete }: OnboardingProps) {
   const [step, setStep] = useState<OnboardingStep>("welcome");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [vaultPath, setVaultPath] = useState("~/Documents/EnPet/vault");
+  // 新用户要空白词库还是带示例的；已有词库的用户走"我已有词库"分支，两者都不写示例
+  const [withSample, setWithSample] = useState(true);
   const [hasExistingData, setHasExistingData] = useState(false);
   const [completedSteps, setCompletedSteps] = useState<string[]>([]);
 
@@ -35,7 +42,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
     setLoading(true);
     setError(null);
     try {
-      await api.setupVault(vaultPath);
+      await api.setupVault(vaultPath, withSample);
       setCompletedSteps([...completedSteps, "setup"]);
       setStep("import");
     } catch (cause) {
@@ -76,13 +83,13 @@ export function Onboarding({ onComplete }: OnboardingProps) {
   const handleComplete = async () => {
     setLoading(true);
     try {
-      await fetch("/api/onboarding/complete", { method: "POST" });
-      onComplete();
+      await api.completeOnboarding();
     } catch (cause) {
-      console.error("标记完成失败:", cause);
-      onComplete();
+      // 标记失败不该挡住用户进主界面，但要留下痕迹便于排查
+      console.error("标记引导完成失败:", cause);
     } finally {
       setLoading(false);
+      onComplete();
     }
   };
 
@@ -216,6 +223,59 @@ export function Onboarding({ onComplete }: OnboardingProps) {
                     <span>标准应用数据位置，更隐蔽但安全</span>
                   </div>
                 </label>
+
+                <label className="path-option">
+                  <input
+                    type="radio"
+                    name="vaultPath"
+                    value="custom"
+                    checked={!PRESET_PATHS.includes(vaultPath)}
+                    onChange={() => setVaultPath("")}
+                  />
+                  <div>
+                    <strong>自定义目录</strong>
+                    <span>已有词库时选这个，填写词库文件所在目录的绝对路径</span>
+                  </div>
+                </label>
+
+                {!PRESET_PATHS.includes(vaultPath) ? (
+                  <input
+                    type="text"
+                    className="path-input"
+                    value={vaultPath}
+                    placeholder="/Users/you/Documents/我的词库"
+                    onChange={(e) => setVaultPath(e.target.value)}
+                  />
+                ) : null}
+              </div>
+
+              <h4>词库文件内容：</h4>
+              <div className="path-options">
+                <label className="path-option">
+                  <input
+                    type="radio"
+                    name="withSample"
+                    checked={withSample}
+                    onChange={() => setWithSample(true)}
+                  />
+                  <div>
+                    <strong>创建带示例的词库</strong>
+                    <span>写入 6 个示例词，可以立刻体验完整学习流程</span>
+                  </div>
+                </label>
+
+                <label className="path-option">
+                  <input
+                    type="radio"
+                    name="withSample"
+                    checked={!withSample}
+                    onChange={() => setWithSample(false)}
+                  />
+                  <div>
+                    <strong>创建空白词库</strong>
+                    <span>只写表头。目录里已有词库文件时不会被覆盖</span>
+                  </div>
+                </label>
               </div>
             </div>
 
@@ -230,8 +290,13 @@ export function Onboarding({ onComplete }: OnboardingProps) {
             <button type="button" className="secondary-button" onClick={() => setStep("welcome")} disabled={loading}>
               返回
             </button>
-            <button type="button" className="primary-button" onClick={handleSetup} disabled={loading}>
-              {loading ? "创建中..." : "创建示例词库"}
+            <button
+              type="button"
+              className="primary-button"
+              onClick={handleSetup}
+              disabled={loading || !vaultPath.trim()}
+            >
+              {loading ? "创建中..." : withSample ? "创建示例词库" : "创建空白词库"}
             </button>
           </div>
         </div>

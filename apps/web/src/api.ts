@@ -53,11 +53,16 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
 export const api = {
   health: () => request<HealthResponse>("/api/health"),
   onboarding: () => request<OnboardingState>("/api/onboarding"),
-  setupVault: (vaultPath?: string) =>
-    request<{ success: boolean; message: string }>("/api/onboarding/setup-vault", {
-      method: "POST",
-      body: JSON.stringify({ vaultPath: vaultPath || "~/Documents/EnPet/vault" }),
-    }),
+  setupVault: (vaultPath?: string, withSample = true) =>
+    request<{ success: boolean; message: string; vocabDir: string }>(
+      "/api/onboarding/setup-vault",
+      {
+        method: "POST",
+        body: JSON.stringify({ vaultPath, withSample }),
+      },
+    ),
+  completeOnboarding: () =>
+    request<{ success: boolean }>("/api/onboarding/complete", { method: "POST" }),
   importVocabulary: () =>
     request<ImportSummary>("/api/import", {
       method: "POST",

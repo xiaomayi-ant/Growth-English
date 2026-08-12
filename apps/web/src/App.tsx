@@ -7,6 +7,7 @@ import {
   Eye,
   EyeOff,
   History,
+  Info,
   LoaderCircle,
   RefreshCw,
   RotateCcw,
@@ -346,6 +347,7 @@ export default function App() {
   const [importing, setImporting] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -360,8 +362,8 @@ export default function App() {
         api.history(),
       ]);
       setHealth(nextHealth);
-      // 总是显示onboarding，让用户选择是否跳过
-      setShowOnboarding(true);
+      // 只有引导没走完才拦路；走完的用户直接进主界面，需要时从侧栏重新进入
+      setShowOnboarding(nextOnboarding.step !== "complete");
       setNewSession(nextNew.session);
       setReviewSession(nextReview.session);
       setQueue(nextQueue);
@@ -456,7 +458,13 @@ export default function App() {
                     setImporting(true);
                     setError(null);
                     try {
-                      await api.importVocabulary();
+                      const summary = await api.importVocabulary();
+                      // files === 0 是"还没放词库文件"，属于正常状态，用提示而不是错误呈现
+                      setNotice(
+                        summary.files === 0
+                          ? (summary.message ?? "词库目录中还没有词库文件")
+                          : `已导入 ${summary.files} 个文件，新增 ${summary.inserted} 条，更新 ${summary.updated} 条`,
+                      );
                       await refresh();
                     } catch (cause) {
                       setError(cause instanceof Error ? cause.message : "导入失败");
@@ -487,13 +495,31 @@ export default function App() {
             </header>
 
             {error ? <ErrorBanner message={error} onRetry={refresh} /> : null}
+            {notice ? (
+              <div className="setup-banner">
+                <Info aria-hidden="true" />
+                <div>
+                  <span>{notice}</span>
+                </div>
+                <button type="button" className="icon-button" onClick={() => setNotice(null)}>
+                  ×
+                </button>
+              </div>
+            ) : null}
             {health?.sourceEntries === 0 && !loading ? (
               <div className="setup-banner">
                 <Database aria-hidden="true" />
                 <div>
                   <strong>词库尚未导入</strong>
-                  <span>同步 Obsidian 词表后开始学习。</span>
+                  <span>把词库文件放进词库目录后点「同步词库」，或重新运行引导。</span>
                 </div>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => setShowOnboarding(true)}
+                >
+                  运行引导
+                </button>
               </div>
             ) : null}
 

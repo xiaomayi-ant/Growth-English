@@ -1102,6 +1102,22 @@ button:disabled {
   border-color: var(--border-strong);
 }
 
+.path-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 0.95rem;
+  background: var(--surface);
+  color: inherit;
+}
+
+.path-input:focus {
+  outline: none;
+  border-color: var(--border-strong);
+}
+
 .path-option input[type="radio"] {
   margin-top: 2px;
 }

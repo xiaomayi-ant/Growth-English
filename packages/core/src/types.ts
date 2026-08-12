@@ -31,6 +31,9 @@ export interface ImportSummary {
   inserted: number;
   updated: number;
   issues: ImportIssue[];
+  /** 词库目录为空等正常但需要告知用户的情况 */
+  message?: string;
+  vocabDir?: string;
 }
 
 export interface ScenarioContent {

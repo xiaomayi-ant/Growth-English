@@ -16,6 +16,11 @@ const configSchema = z.object({
   port: z.number().int().min(1).max(65_535),
   timeZone: z.string().min(1),
   vocabDir: z.string().min(1),
+  // 词库文件名前缀；序号后缀（-002）仍决定学习顺序，前缀可自定义
+  vocabFilePrefix: z
+    .string()
+    .min(1)
+    .regex(/^[^/\\]+$/, "词库文件名前缀不能包含路径分隔符"),
   databasePath: z.string().min(1),
   reportsDir: z.string().min(1),
   reviewQueuePath: z.string().min(1),
@@ -26,9 +31,12 @@ const configSchema = z.object({
 
 export type AppConfig = z.infer<typeof configSchema>;
 
+export const DEFAULT_VOCAB_FILE_PREFIX = "english-words";
+
 // 设置页可编辑的字段；reportsDir / reviewQueuePath / databasePath 不暴露编辑
 export const editableSettingsSchema = z.object({
   vocabDir: configSchema.shape.vocabDir,
+  vocabFilePrefix: configSchema.shape.vocabFilePrefix,
   newWordsPerDay: configSchema.shape.newWordsPerDay,
   reviewLimit: configSchema.shape.reviewLimit,
   reminderTime: configSchema.shape.reminderTime,
@@ -80,6 +88,7 @@ export async function migrateLegacyDataDir(): Promise<void> {
 export function defaultEditableSettings(): EditableSettings {
   return {
     vocabDir: path.join(defaultDataDir(), "vault"),
+    vocabFilePrefix: DEFAULT_VOCAB_FILE_PREFIX,
     newWordsPerDay: 6,
     reviewLimit: 30,
     reminderTime: "09:00",
@@ -158,6 +167,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     port: Number(readEnv(env, "PORT") ?? 4173),
     timeZone: readEnv(env, "TIMEZONE") ?? "Asia/Shanghai",
     vocabDir: readEnv(env, "VOCAB_DIR") ?? filteredSaved.vocabDir ?? vaultDir,
+    vocabFilePrefix:
+      readEnv(env, "VOCAB_FILE_PREFIX") ??
+      filteredSaved.vocabFilePrefix ??
+      DEFAULT_VOCAB_FILE_PREFIX,
     databasePath,
     reportsDir: readEnv(env, "REPORTS_DIR") ?? path.join(vaultDir, "study", "reports"),
     reviewQueuePath:

@@ -1,7 +1,16 @@
 import { access } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { type AppConfig, todayInTimeZone, createDefaultVaultStructure, detectOnboardingState, TaskScheduler } from "@enpet/core";
+import {
+  type AppConfig,
+  todayInTimeZone,
+  createDefaultVaultStructure,
+  detectOnboardingState,
+  markOnboardingComplete,
+  settingsPathForDatabasePath,
+  writeSettingsFile,
+  TaskScheduler,
+} from "@enpet/core";
 import { EnPetDatabase } from "@enpet/database";
 import {
   type AnswerEvaluator,
@@ -156,17 +165,35 @@ export async function buildApp(
   });
 
   app.post("/api/onboarding/setup-vault", async (request) => {
-    const body = z.object({ vaultPath: z.string().optional() }).parse(request.body || {});
-    const vaultPath = body.vaultPath || "~/Documents/EnPet/vault";
+    const body = z
+      .object({ vaultPath: z.string().optional(), withSample: z.boolean().optional() })
+      .parse(request.body || {});
+    const vaultPath = body.vaultPath || config.vocabDir;
 
     try {
       // 展开用户提供的路径
-      const expandedPath = vaultPath.replace(/^~/, process.env.HOME || process.env.USERPROFILE || "");
-      await createDefaultVaultStructure({ ...config, vocabDir: expandedPath });
-      return { success: true, message: "词库目录已创建" };
+      const expandedPath = vaultPath.replace(
+        /^~/,
+        process.env.HOME || process.env.USERPROFILE || "",
+      );
+      await createDefaultVaultStructure(
+        { ...config, vocabDir: expandedPath },
+        body.withSample ?? true,
+      );
+      // 必须落盘，否则 loadConfig 下次仍然读默认目录，导入会找不到刚创建的词库
+      await writeSettingsFile(settingsPathForDatabasePath(config.databasePath), {
+        vocabDir: expandedPath,
+      });
+      config.vocabDir = expandedPath;
+      return { success: true, message: "词库目录已创建", vocabDir: expandedPath };
     } catch (error) {
       throw new Error(`设置词库目录失败: ${error instanceof Error ? error.message : String(error)}`);
     }
+  });
+
+  app.post("/api/onboarding/complete", async () => {
+    await markOnboardingComplete(config);
+    return { success: true };
   });
 
   // 定时任务管理端点
@@ -202,7 +229,19 @@ export async function buildApp(
   });
 
   app.post("/api/import", async () => {
-    const vocabulary = await loadVocabulary(config.vocabDir);
+    const vocabulary = await loadVocabulary(config.vocabDir, config.vocabFilePrefix);
+    // 没有词库文件时不写库，直接回报 0，让前端提示而不是当成失败
+    if (vocabulary.files === 0) {
+      return {
+        files: 0,
+        parsed: 0,
+        inserted: 0,
+        updated: 0,
+        issues: [],
+        vocabDir: config.vocabDir,
+        message: `词库目录中还没有 ${config.vocabFilePrefix}*.md 文件`,
+      };
+    }
     const summary = database.importEntries(vocabulary.entries, vocabulary.files, vocabulary.issues);
     await writeReviewQueue(
       config.reviewQueuePath,

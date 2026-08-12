@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
-import path from "node:path";
 import os from "node:os";
+import path from "node:path";
 import type { AppConfig } from "./config.js";
 
 export interface OnboardingState {
@@ -15,8 +15,10 @@ const ONBOARDING_COMPLETE_FILE = ".onboarding-complete";
 
 export function detectOnboardingState(config: AppConfig): OnboardingState {
   const hasExistingData = existsSync(config.databasePath);
-  const hasVaultFiles = existsSync(path.join(config.vocabDir, "english-words.md"));
-  const hasOnboardingComplete = existsSync(path.join(path.dirname(config.databasePath), ONBOARDING_COMPLETE_FILE));
+  const hasVaultFiles = existsSync(path.join(config.vocabDir, `${config.vocabFilePrefix}.md`));
+  const hasOnboardingComplete = existsSync(
+    path.join(path.dirname(config.databasePath), ONBOARDING_COMPLETE_FILE),
+  );
 
   if (hasOnboardingComplete && hasExistingData) {
     return {
@@ -40,25 +42,28 @@ export function detectOnboardingState(config: AppConfig): OnboardingState {
   }
 }
 
-export async function createDefaultVaultStructure(config: AppConfig): Promise<void> {
+const SAMPLE_ROWS = `| study<br>学习<br>ˈstʌdi | practice<br>练习<br>ˈpræktɪs | improve<br>改进<br>ɪmˈpruːv |
+| learn<br>学习<br>lɜːrn | review<br>复习<br>rɪˈvjuː | remember<br>记住<br>rɪˈmembər |
+`;
+
+// withSample=false 时只写表头，用户得到一个格式正确的空白词库
+export async function createDefaultVaultStructure(
+  config: AppConfig,
+  withSample = true,
+): Promise<void> {
   // 确保父目录存在
   await mkdir(config.vocabDir, { recursive: true });
   await mkdir(path.join(config.vocabDir, "study", "reports"), { recursive: true });
 
-  // 创建示例词库文件
-  const samplePath = path.join(config.vocabDir, "english-words.md");
+  const samplePath = path.join(config.vocabDir, `${config.vocabFilePrefix}.md`);
   if (!existsSync(samplePath)) {
-    const sampleContent = `# English Vocabulary
+    const content = `# English Vocabulary
 
-| Word | Meaning | Phonetic |
+| | | |
 | :--- | :--- | :--- |
-| study<br>学习<br>ˈstʌdi | The activity of learning or gaining knowledge | ˈstʌdi |
-| practice<br>练习<br>ˈpræktɪs | Repeated exercise in an activity or skill to acquire proficiency | ˈpræktɪs |
-| improve<br>改进<br>ɪmˈpruːv | To become better or make something better | ɪmˈpruːv |
-| learn<br>学习<br>lɜːrn | To gain knowledge or skill through study, experience, or teaching | lɜːrn |
-`;
+${withSample ? SAMPLE_ROWS : ""}`;
     const { writeFile: fsWriteFile } = await import("node:fs/promises");
-    await fsWriteFile(samplePath, sampleContent, "utf-8");
+    await fsWriteFile(samplePath, content, "utf-8");
   }
 }
 
