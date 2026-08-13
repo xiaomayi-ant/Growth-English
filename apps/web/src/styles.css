@@ -1302,3 +1302,89 @@ button:disabled {
   align-items: center;
   gap: 8px;
 }
+
+/* 导入预览 */
+.preview-card {
+  max-width: 900px;
+}
+
+.preview-status {
+  color: var(--text-muted);
+  font-size: 0.92rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.format-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.format-controls label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.format-controls select,
+.format-controls input {
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 0.9rem;
+  background: var(--surface);
+  color: inherit;
+}
+
+.preview-table-wrap {
+  max-height: 320px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.preview-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.preview-table th {
+  position: sticky;
+  top: 0;
+  background: var(--surface);
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  font-weight: 600;
+}
+
+.preview-table td {
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+.preview-table input {
+  width: 100%;
+  padding: 5px 7px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 0.9rem;
+  background: transparent;
+  color: inherit;
+}
+
+.preview-table input:focus {
+  outline: none;
+  border-color: var(--border-strong);
+  background: var(--surface);
+}

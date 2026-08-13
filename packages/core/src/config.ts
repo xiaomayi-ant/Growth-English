@@ -11,6 +11,32 @@ const DATABASE_FILE = "enpet.sqlite3";
 const LEGACY_DATABASE_FILE = "en-play.sqlite3";
 const MIGRATION_MARKER = ".migrated-from-en-play";
 
+const vocabFieldSchema = z.enum(["word", "meaning", "phonetic"]);
+
+// 词库格式描述符：用户在导入预览里调的就是它，解析器按它工作，不需要改代码
+export const vocabFormatSchema = z.object({
+  layout: z.enum(["cell", "column"]),
+  separator: z.string().min(1),
+  fieldOrder: z.array(vocabFieldSchema).min(1),
+  columns: z.object({
+    word: z.number().int().min(0),
+    meaning: z.number().int().min(0),
+    phonetic: z.number().int().min(0),
+  }),
+});
+
+export type VocabFormat = z.infer<typeof vocabFormatSchema>;
+
+// exactOptionalPropertyTypes 下 Partial<T> 不接受显式 undefined，接口入参要用这个
+export type VocabFormatInput = { [K in keyof VocabFormat]?: VocabFormat[K] | undefined };
+
+export const DEFAULT_VOCAB_FORMAT: VocabFormat = {
+  layout: "cell",
+  separator: "<br>",
+  fieldOrder: ["word", "meaning", "phonetic"],
+  columns: { word: 1, meaning: 2, phonetic: 3 },
+};
+
 const configSchema = z.object({
   host: z.string().min(1),
   port: z.number().int().min(1).max(65_535),
@@ -21,6 +47,8 @@ const configSchema = z.object({
     .string()
     .min(1)
     .regex(/^[^/\\]+$/, "词库文件名前缀不能包含路径分隔符"),
+  // 没有值时由导入器自动探测；用户在预览里确认后才落盘固定下来
+  vocabFormat: vocabFormatSchema.optional(),
   databasePath: z.string().min(1),
   reportsDir: z.string().min(1),
   reviewQueuePath: z.string().min(1),
@@ -37,6 +65,7 @@ export const DEFAULT_VOCAB_FILE_PREFIX = "english-words";
 export const editableSettingsSchema = z.object({
   vocabDir: configSchema.shape.vocabDir,
   vocabFilePrefix: configSchema.shape.vocabFilePrefix,
+  vocabFormat: configSchema.shape.vocabFormat,
   newWordsPerDay: configSchema.shape.newWordsPerDay,
   reviewLimit: configSchema.shape.reviewLimit,
   reminderTime: configSchema.shape.reminderTime,
@@ -85,10 +114,45 @@ export async function migrateLegacyDataDir(): Promise<void> {
   await writeFile(path.join(dataDir, MIGRATION_MARKER), `${new Date().toISOString()}\n`, "utf8");
 }
 
+/**
+ * 数据目录指针。settings.json 本身住在数据目录里，所以数据目录的位置不能存在那儿，
+ * 只能放一个独立的小文件（桌面版放在 Electron userData 下）。
+ */
+export const DATA_DIR_POINTER_FILE = "location.json";
+
+export function readDataDirPointer(pointerDir: string): string | null {
+  try {
+    const raw = JSON.parse(readFileSync(path.join(pointerDir, DATA_DIR_POINTER_FILE), "utf8")) as {
+      dataDir?: unknown;
+    };
+    return typeof raw.dataDir === "string" && raw.dataDir.trim() ? raw.dataDir : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function writeDataDirPointer(pointerDir: string, dataDir: string): Promise<void> {
+  await mkdir(pointerDir, { recursive: true });
+  await writeFile(
+    path.join(pointerDir, DATA_DIR_POINTER_FILE),
+    `${JSON.stringify({ dataDir }, null, 2)}\n`,
+    "utf8",
+  );
+}
+
+export function databasePathForDataDir(dataDir: string): string {
+  return path.join(dataDir, DATABASE_FILE);
+}
+
+export function recommendedDataDir(): string {
+  return defaultDataDir();
+}
+
 export function defaultEditableSettings(): EditableSettings {
   return {
     vocabDir: path.join(defaultDataDir(), "vault"),
     vocabFilePrefix: DEFAULT_VOCAB_FILE_PREFIX,
+    vocabFormat: DEFAULT_VOCAB_FORMAT,
     newWordsPerDay: 6,
     reviewLimit: 30,
     reminderTime: "09:00",
@@ -171,6 +235,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       readEnv(env, "VOCAB_FILE_PREFIX") ??
       filteredSaved.vocabFilePrefix ??
       DEFAULT_VOCAB_FILE_PREFIX,
+    vocabFormat: filteredSaved.vocabFormat,
     databasePath,
     reportsDir: readEnv(env, "REPORTS_DIR") ?? path.join(vaultDir, "study", "reports"),
     reviewQueuePath:
@@ -185,4 +250,15 @@ export async function ensureVaultDirectories(config: AppConfig): Promise<void> {
   await mkdir(config.vocabDir, { recursive: true });
   await mkdir(config.reportsDir, { recursive: true });
   await mkdir(path.dirname(config.reviewQueuePath), { recursive: true });
+
+  // 词库目录始终保持为 Obsidian vault，无论它是引导创建的还是用户后来改的
+  const obsidianDir = path.join(config.vocabDir, ".obsidian");
+  if (!existsSync(obsidianDir)) {
+    await mkdir(obsidianDir, { recursive: true });
+    await writeFile(
+      path.join(obsidianDir, "app.json"),
+      `${JSON.stringify({ attachmentFolderPath: "attachments" }, null, 2)}\n`,
+      "utf8",
+    );
+  }
 }

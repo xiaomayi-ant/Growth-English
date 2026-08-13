@@ -3,26 +3,28 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   type AppConfig,
-  todayInTimeZone,
   createDefaultVaultStructure,
   detectOnboardingState,
   markOnboardingComplete,
+  obsidianVaultLink,
   settingsPathForDatabasePath,
-  writeSettingsFile,
   TaskScheduler,
+  todayInTimeZone,
+  vocabFormatSchema,
+  writeSettingsFile,
 } from "@enpet/core";
 import { EnPetDatabase } from "@enpet/database";
 import {
   type AnswerEvaluator,
-  type ContentGenerator,
-  CodexContentGenerator,
   CodexAnswerEvaluator,
+  CodexContentGenerator,
+  type ContentGenerator,
   DeterministicAnswerEvaluator,
   DeterministicContentGenerator,
 } from "@enpet/evaluation";
 import { writeDailyReport, writeReviewQueue } from "@enpet/reporting";
 import { StudyService } from "@enpet/scheduler";
-import { loadVocabulary, VocabImportError } from "@enpet/vocabulary-import";
+import { loadVocabulary, normalizeFormat, VocabImportError } from "@enpet/vocabulary-import";
 import cors from "@fastify/cors";
 import fastifyStatic from "@fastify/static";
 import Fastify, { type FastifyInstance } from "fastify";
@@ -155,9 +157,13 @@ export async function buildApp(
 
   app.get("/api/health", async () => ({
     status: "ok",
+    // 桌面版由 Electron 注入真实版本；从源码跑时就是 dev，这本来也不是某个已发布版本
+    version: process.env.ENPET_APP_VERSION ?? "dev",
     today: todayInTimeZone(config.timeZone),
     sourceEntries: database.countSourceEntries(),
     currentFileIndex: database.getCurrentFileIndex(),
+    vocabDir: config.vocabDir,
+    obsidianLink: obsidianVaultLink(config.vocabDir),
   }));
 
   app.get("/api/onboarding", async () => {
@@ -185,9 +191,16 @@ export async function buildApp(
         vocabDir: expandedPath,
       });
       config.vocabDir = expandedPath;
-      return { success: true, message: "词库目录已创建", vocabDir: expandedPath };
+      return {
+        success: true,
+        message: "词库目录已创建",
+        vocabDir: expandedPath,
+        obsidianLink: obsidianVaultLink(expandedPath),
+      };
     } catch (error) {
-      throw new Error(`设置词库目录失败: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `设置词库目录失败: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   });
 
@@ -203,7 +216,7 @@ export async function buildApp(
 
   app.post("/api/tasks/:taskId/run", async (request) => {
     const { taskId } = z.object({ taskId: z.string() }).parse(request.params);
-    const task = (await taskScheduler.getDefaultTasks()).find(t => t.id === taskId);
+    const task = (await taskScheduler.getDefaultTasks()).find((t) => t.id === taskId);
     if (!task) {
       return { error: "Task not found" };
     }
@@ -211,7 +224,9 @@ export async function buildApp(
     try {
       let result;
       if (task.type === "new_learning") {
-        const session = await studyService.createNewLearningSession(todayInTimeZone(config.timeZone));
+        const session = await studyService.createNewLearningSession(
+          todayInTimeZone(config.timeZone),
+        );
         result = { taskId, runAt: new Date().toISOString(), success: true, sessionId: session?.id };
       } else {
         const session = studyService.createReviewSession(todayInTimeZone(config.timeZone));
@@ -228,8 +243,67 @@ export async function buildApp(
     }
   });
 
-  app.post("/api/import", async () => {
-    const vocabulary = await loadVocabulary(config.vocabDir, config.vocabFilePrefix);
+  // 预览只解析不写库，用户在这里调格式、改词条，确认后才走 /api/import
+  app.post("/api/import/preview", async (request) => {
+    const body = z
+      .object({ format: vocabFormatSchema.partial().optional(), limit: z.number().optional() })
+      .parse(request.body || {});
+    const vocabulary = await loadVocabulary(
+      config.vocabDir,
+      config.vocabFilePrefix,
+      body.format ?? config.vocabFormat,
+    );
+    const limit = body.limit ?? 50;
+    return {
+      files: vocabulary.files,
+      total: vocabulary.entries.length,
+      format: vocabulary.format,
+      issues: vocabulary.issues.slice(0, 20),
+      entries: vocabulary.entries.slice(0, limit),
+      vocabDir: config.vocabDir,
+    };
+  });
+
+  app.put("/api/entries/:id", async (request) => {
+    const { id } = z.object({ id: z.string() }).parse(request.params);
+    const fields = z
+      .object({
+        word: z.string().min(1).optional(),
+        meaning: z.string().optional(),
+        phonetic: z.string().optional(),
+      })
+      .parse(request.body || {});
+    const entry = database.setEntryOverride(id, fields);
+    if (!entry) {
+      const error = new Error("词条不存在") as Error & { statusCode: number };
+      error.statusCode = 404;
+      throw error;
+    }
+    return entry;
+  });
+
+  app.delete("/api/entries/:id/override", async (request) => {
+    const { id } = z.object({ id: z.string() }).parse(request.params);
+    database.clearEntryOverride(id);
+    return { success: true };
+  });
+
+  app.post("/api/import", async (request) => {
+    const body = z
+      .object({ format: vocabFormatSchema.partial().optional() })
+      .parse(request.body || {});
+    // 导入时确认的格式要存下来，下次同步词库不用重新选
+    if (body.format) {
+      await writeSettingsFile(settingsPathForDatabasePath(config.databasePath), {
+        vocabFormat: normalizeFormat(body.format),
+      });
+      config.vocabFormat = normalizeFormat(body.format);
+    }
+    const vocabulary = await loadVocabulary(
+      config.vocabDir,
+      config.vocabFilePrefix,
+      config.vocabFormat,
+    );
     // 没有词库文件时不写库，直接回报 0，让前端提示而不是当成失败
     if (vocabulary.files === 0) {
       return {
@@ -344,7 +418,22 @@ export async function buildApp(
 
   const staticRoot = webDistPath();
   if (await exists(path.join(staticRoot, "index.html"))) {
-    await app.register(fastifyStatic, { root: staticRoot, prefix: "/" });
+    await app.register(fastifyStatic, {
+      root: staticRoot,
+      prefix: "/",
+      // 必须关掉插件自带的 cacheControl，否则它会在 setHeaders 之后覆盖 Cache-Control
+      cacheControl: false,
+      // 标准的两层缓存策略：构建产物文件名带内容哈希，可以永久缓存，换版本时文件名自然变；
+      // index.html 文件名固定，必须每次回源校验，否则新版发布后浏览器会一直复用旧外壳，
+      // 旧外壳又引用旧哈希资源，整个界面就停在上一个版本。
+      setHeaders(response, filePath) {
+        const immutable = filePath.includes(`${path.sep}assets${path.sep}`);
+        response.setHeader(
+          "Cache-Control",
+          immutable ? "public, max-age=31536000, immutable" : "no-cache, must-revalidate",
+        );
+      },
+    });
     app.setNotFoundHandler((request, reply) => {
       if (request.url.startsWith("/api/")) {
         reply.status(404).send({ error: "API route not found" });

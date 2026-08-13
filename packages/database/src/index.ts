@@ -41,6 +41,16 @@ CREATE TABLE IF NOT EXISTS source_entries (
 CREATE INDEX IF NOT EXISTS idx_source_entries_file_order
 ON source_entries(file_index, source_order);
 
+-- 用户在导入预览里逐条改过的字段。原始 Markdown 保持只读，
+-- 每次导入完把这些值重新盖回 source_entries，改动不会被重新导入冲掉。
+CREATE TABLE IF NOT EXISTS entry_overrides (
+  source_entry_id TEXT PRIMARY KEY,
+  word TEXT,
+  meaning TEXT,
+  phonetic TEXT,
+  updated_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS learning_items (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   source_entry_id TEXT NOT NULL UNIQUE REFERENCES source_entries(id),
@@ -220,9 +230,58 @@ export class EnPetDatabase {
         if (exists) updated += 1;
         else inserted += 1;
       }
+      this.applyOverrides();
     });
 
     return { files, parsed: entries.length, inserted, updated, issues };
+  }
+
+  /** 导入会用文件内容覆盖 source_entries，所以每次导入后要把用户的修改重新盖回去 */
+  private applyOverrides(): void {
+    this.connection.exec(`
+      UPDATE source_entries SET
+        word = COALESCE((SELECT o.word FROM entry_overrides o WHERE o.source_entry_id = source_entries.id), word),
+        meaning = COALESCE((SELECT o.meaning FROM entry_overrides o WHERE o.source_entry_id = source_entries.id), meaning),
+        phonetic = COALESCE((SELECT o.phonetic FROM entry_overrides o WHERE o.source_entry_id = source_entries.id), phonetic)
+      WHERE id IN (SELECT source_entry_id FROM entry_overrides)
+    `);
+  }
+
+  setEntryOverride(
+    sourceEntryId: string,
+    fields: {
+      word?: string | undefined;
+      meaning?: string | undefined;
+      phonetic?: string | undefined;
+    },
+  ): SourceEntry | null {
+    this.transaction(() => {
+      this.connection
+        .prepare(`
+          INSERT INTO entry_overrides(source_entry_id, word, meaning, phonetic, updated_at)
+          VALUES(?, ?, ?, ?, ?)
+          ON CONFLICT(source_entry_id) DO UPDATE SET
+            word = COALESCE(excluded.word, entry_overrides.word),
+            meaning = COALESCE(excluded.meaning, entry_overrides.meaning),
+            phonetic = COALESCE(excluded.phonetic, entry_overrides.phonetic),
+            updated_at = excluded.updated_at
+        `)
+        .run(
+          sourceEntryId,
+          fields.word ?? null,
+          fields.meaning ?? null,
+          fields.phonetic ?? null,
+          nowIso(),
+        );
+      this.applyOverrides();
+    });
+    return this.getSourceEntry(sourceEntryId);
+  }
+
+  clearEntryOverride(sourceEntryId: string): void {
+    this.connection
+      .prepare("DELETE FROM entry_overrides WHERE source_entry_id = ?")
+      .run(sourceEntryId);
   }
 
   countSourceEntries(): number {

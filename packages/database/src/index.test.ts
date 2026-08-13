@@ -74,4 +74,33 @@ describe("EnPetDatabase", () => {
     database.submitSessionItem(review.id, entry.id, "answer", "good" satisfies Rating);
     expect(database.getReviewQueue("2026-07-13").dueToday).toHaveLength(0);
   });
+
+  // 用户在预览里改过的字段不能被下一次导入用文件内容盖掉
+  describe("entry overrides", () => {
+    it("survives a re-import of the same source file", () => {
+      const [entry] = entries(1);
+      if (!entry) throw new Error("fixture missing");
+      database.importEntries([entry], 1, []);
+
+      const updated = database.setEntryOverride(entry.id, { meaning: "我改过的释义" });
+      expect(updated?.meaning).toBe("我改过的释义");
+
+      database.importEntries([entry], 1, []);
+      expect(database.getSourceEntry(entry.id)?.meaning).toBe("我改过的释义");
+      // 没被覆盖的字段仍然跟随文件
+      expect(database.getSourceEntry(entry.id)?.word).toBe(entry.word);
+    });
+
+    it("stops overriding once cleared", () => {
+      const [entry] = entries(1);
+      if (!entry) throw new Error("fixture missing");
+      database.importEntries([entry], 1, []);
+      database.setEntryOverride(entry.id, { meaning: "临时" });
+
+      database.clearEntryOverride(entry.id);
+      database.importEntries([entry], 1, []);
+
+      expect(database.getSourceEntry(entry.id)?.meaning).toBe(entry.meaning);
+    });
+  });
 });

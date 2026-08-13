@@ -2,5 +2,11 @@
 // process needs from the server and core packages so esbuild can produce a
 // single self-contained dist/server.cjs.
 
-export { ensureVaultDirectories, loadConfig, migrateLegacyDataDir } from "@enpet/core";
+export {
+  databasePathForDataDir,
+  ensureVaultDirectories,
+  loadConfig,
+  migrateLegacyDataDir,
+  readDataDirPointer,
+} from "@enpet/core";
 export { buildApp } from "../../server/src/app.js";

@@ -9,15 +9,17 @@ import {
   History,
   Info,
   LoaderCircle,
+  NotebookPen,
   RefreshCw,
   RotateCcw,
   Settings as SettingsIcon,
   TriangleAlert,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { api } from "./api";
+import { ImportPreview } from "./ImportPreview";
 import { Onboarding } from "./Onboarding";
 import { Settings } from "./Settings";
-import { api } from "./api";
 
 type View = "learn" | "review" | "history";
 
@@ -348,19 +350,21 @@ export default function App() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [showPreview, setShowPreview] = useState(false);
 
   const refresh = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [nextHealth, nextOnboarding, nextNew, nextReview, nextQueue, nextHistory] = await Promise.all([
-        api.health(),
-        api.onboarding().catch(() => ({ step: "welcome" as const, hasExistingData: false })),
-        api.getNewSession(),
-        api.getReviewSession(),
-        api.getReviewQueue(),
-        api.history(),
-      ]);
+      const [nextHealth, nextOnboarding, nextNew, nextReview, nextQueue, nextHistory] =
+        await Promise.all([
+          api.health(),
+          api.onboarding().catch(() => ({ step: "welcome" as const, hasExistingData: false })),
+          api.getNewSession(),
+          api.getReviewSession(),
+          api.getReviewQueue(),
+          api.history(),
+        ]);
       setHealth(nextHealth);
       // 只有引导没走完才拦路；走完的用户直接进主界面，需要时从侧栏重新进入
       setShowOnboarding(nextOnboarding.step !== "complete");
@@ -387,10 +391,21 @@ export default function App() {
   return (
     <>
       {showOnboarding ? (
-        <Onboarding onComplete={() => {
-          setShowOnboarding(false);
-          void refresh();
-        }} />
+        <Onboarding
+          onComplete={() => {
+            setShowOnboarding(false);
+            void refresh();
+          }}
+        />
+      ) : showPreview ? (
+        <ImportPreview
+          onCancel={() => setShowPreview(false)}
+          onImported={(inserted, updated) => {
+            setShowPreview(false);
+            setNotice(`导入完成：新增 ${inserted} 条，更新 ${updated} 条`);
+            void refresh();
+          }}
+        />
       ) : showSettings ? (
         <Settings onClose={() => setShowSettings(false)} />
       ) : (
@@ -400,7 +415,7 @@ export default function App() {
               <div className="brand-mark">EN</div>
               <div>
                 <strong>EnPet</strong>
-                <span>Vocabulary Studio</span>
+                <span>{health ? `v${health.version}` : "Vocabulary Studio"}</span>
               </div>
             </div>
             <nav className="primary-nav" aria-label="主要导航">
@@ -458,16 +473,15 @@ export default function App() {
                     setImporting(true);
                     setError(null);
                     try {
-                      const summary = await api.importVocabulary();
-                      // files === 0 是"还没放词库文件"，属于正常状态，用提示而不是错误呈现
-                      setNotice(
-                        summary.files === 0
-                          ? (summary.message ?? "词库目录中还没有词库文件")
-                          : `已导入 ${summary.files} 个文件，新增 ${summary.inserted} 条，更新 ${summary.updated} 条`,
-                      );
-                      await refresh();
+                      // 先探一次：没有词库文件就直接提示，有的话进预览让用户确认
+                      const preview = await api.previewImport();
+                      if (preview.files === 0) {
+                        setNotice(`${preview.vocabDir} 中还没有词库文件`);
+                      } else {
+                        setShowPreview(true);
+                      }
                     } catch (cause) {
-                      setError(cause instanceof Error ? cause.message : "导入失败");
+                      setError(cause instanceof Error ? cause.message : "解析词库失败");
                     } finally {
                       setImporting(false);
                     }
@@ -480,7 +494,24 @@ export default function App() {
                   )}
                   同步词库
                 </button>
-                <button type="button" className="icon-button bordered" title="刷新" onClick={refresh}>
+                <button
+                  type="button"
+                  className="icon-button bordered"
+                  title={health ? `在 Obsidian 中打开 ${health.vocabDir}` : "在 Obsidian 中打开"}
+                  disabled={!health}
+                  onClick={() => {
+                    // 词库目录本身就是 vault，Obsidian 首次打开时会自动登记进库列表
+                    if (health) window.location.href = health.obsidianLink;
+                  }}
+                >
+                  <NotebookPen aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  className="icon-button bordered"
+                  title="刷新"
+                  onClick={refresh}
+                >
                   <RefreshCw aria-hidden="true" />
                 </button>
                 <button

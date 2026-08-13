@@ -16,6 +16,8 @@ interface ServerBundle {
   loadConfig: (env: NodeJS.ProcessEnv) => AppConfig;
   ensureVaultDirectories: (config: AppConfig) => Promise<void>;
   migrateLegacyDataDir: () => Promise<void>;
+  readDataDirPointer: (pointerDir: string) => string | null;
+  databasePathForDataDir: (dataDir: string) => string;
 }
 
 const WINDOW_WIDTH = 1080;
@@ -93,17 +95,33 @@ async function migrateLegacyDatabase(databasePath: string, legacyPath: string): 
 }
 
 async function startServer(): Promise<number> {
-  const { buildApp, loadConfig, ensureVaultDirectories, migrateLegacyDataDir } = loadServerBundle();
+  const {
+    buildApp,
+    loadConfig,
+    ensureVaultDirectories,
+    migrateLegacyDataDir,
+    readDataDirPointer,
+    databasePathForDataDir,
+  } = loadServerBundle();
   // 改名前的 "En Play" 数据目录必须在读取配置和设置文件之前搬过来
   await migrateLegacyDataDir();
 
   const userDataDir = app.getPath("userData");
   const settingsEnv = await loadSettingsEnv(userDataDir);
   const legacyDatabasePath = loadConfig({}).databasePath;
-  const base = loadConfig({ ...process.env, ...settingsEnv });
 
-  const databasePath = path.join(userDataDir, "enpet.sqlite3");
+  // 用户在引导里选过数据目录就用它，否则用推荐目录（= userData）
+  const pointedDataDir = readDataDirPointer(userDataDir);
+  const databasePath = pointedDataDir
+    ? databasePathForDataDir(pointedDataDir)
+    : path.join(userDataDir, "enpet.sqlite3");
   await migrateLegacyDatabase(databasePath, legacyDatabasePath);
+
+  // databasePath 要先定下来，loadConfig 才知道去哪个目录读 settings.json
+  const base = loadConfig({ ...process.env, ENPET_DATABASE_PATH: databasePath, ...settingsEnv });
+
+  // 只有 Electron 知道打包后的真实版本号，注入给服务端，界面上就能看出跑的是哪一版
+  process.env.ENPET_APP_VERSION = app.getVersion();
 
   process.env.ENPET_WEB_DIST = app.isPackaged
     ? path.join(process.resourcesPath, "web-dist")

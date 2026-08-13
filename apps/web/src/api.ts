@@ -1,16 +1,31 @@
 import type {
+  ImportIssue,
   ImportSummary,
   OnboardingState,
   Rating,
   ReviewQueue,
+  SourceEntry,
   StudySession,
+  VocabFormat,
 } from "@enpet/core";
+
+export interface ImportPreview {
+  files: number;
+  total: number;
+  format: VocabFormat;
+  issues: ImportIssue[];
+  entries: SourceEntry[];
+  vocabDir: string;
+}
 
 interface HealthResponse {
   status: string;
+  version: string;
   today: string;
   sourceEntries: number;
   currentFileIndex: number | null;
+  vocabDir: string;
+  obsidianLink: string;
 }
 
 interface ApiError {
@@ -63,10 +78,20 @@ export const api = {
     ),
   completeOnboarding: () =>
     request<{ success: boolean }>("/api/onboarding/complete", { method: "POST" }),
-  importVocabulary: () =>
+  previewImport: (format?: Partial<VocabFormat>) =>
+    request<ImportPreview>("/api/import/preview", {
+      method: "POST",
+      body: JSON.stringify({ format }),
+    }),
+  importVocabulary: (format?: Partial<VocabFormat>) =>
     request<ImportSummary>("/api/import", {
       method: "POST",
-      body: JSON.stringify({}),
+      body: JSON.stringify(format ? { format } : {}),
+    }),
+  updateEntry: (id: string, fields: { word?: string; meaning?: string; phonetic?: string }) =>
+    request<SourceEntry>(`/api/entries/${encodeURIComponent(id)}`, {
+      method: "PUT",
+      body: JSON.stringify(fields),
     }),
   getNewSession: () => request<SessionResponse>("/api/sessions/new/today"),
   createNewSession: () =>

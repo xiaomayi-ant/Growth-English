@@ -2,7 +2,12 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { loadVocabulary, parseVocabularyMarkdown, VocabImportError } from "./index.js";
+import {
+  detectFormat,
+  loadVocabulary,
+  parseVocabularyMarkdown,
+  VocabImportError,
+} from "./index.js";
 
 const TABLE = `| 1 | 2 |
 | --- | --- |
@@ -59,7 +64,7 @@ describe("loadVocabulary", () => {
   it("returns an empty result when no vocabulary files exist", async () => {
     const directory = await mkdtemp(path.join(tmpdir(), "enpet-vocab-"));
     try {
-      await expect(loadVocabulary(directory)).resolves.toEqual({
+      await expect(loadVocabulary(directory)).resolves.toMatchObject({
         entries: [],
         issues: [],
         files: 0,
@@ -67,6 +72,55 @@ describe("loadVocabulary", () => {
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
+  });
+});
+
+describe("format detection", () => {
+  const COLUMN_TABLE = `| Word | Meaning | Phonetic |
+| :--- | :--- | :--- |
+| journey | 旅程 | ˈdʒɜːni |
+| pattern | 模式 | ˈpætərn |
+`;
+
+  it("detects the cell layout when cells contain <br>", () => {
+    expect(detectFormat(TABLE).layout).toBe("cell");
+  });
+
+  it("detects the column layout from the header row", () => {
+    const format = detectFormat(COLUMN_TABLE);
+    expect(format.layout).toBe("column");
+    expect(format.columns).toEqual({ word: 1, meaning: 2, phonetic: 3 });
+  });
+
+  it("parses a column-layout table into one entry per row", () => {
+    const result = parseVocabularyMarkdown(
+      "/vault/words.md",
+      1,
+      COLUMN_TABLE,
+      detectFormat(COLUMN_TABLE),
+    );
+    expect(result.entries).toHaveLength(2);
+    expect(result.entries[0]).toMatchObject({
+      word: "journey",
+      meaning: "旅程",
+      phonetic: "ˈdʒɜːni",
+    });
+    expect(result.entries[1]).toMatchObject({ word: "pattern", meaning: "模式" });
+  });
+
+  it("honors a custom separator", () => {
+    const result = parseVocabularyMarkdown("/vault/words.md", 1, "| alpha / 甲 / /a/ |", {
+      layout: "cell",
+      separator: "/",
+    });
+    expect(result.entries[0]).toMatchObject({ word: "alpha", meaning: "甲" });
+  });
+
+  it("honors a remapped field order", () => {
+    const result = parseVocabularyMarkdown("/vault/words.md", 1, "| 甲<br>alpha |", {
+      fieldOrder: ["meaning", "word"],
+    });
+    expect(result.entries[0]).toMatchObject({ word: "alpha", meaning: "甲" });
   });
 });
 

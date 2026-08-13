@@ -2,7 +2,12 @@ import { existsSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import type { AppConfig, ScenarioContent, SourceEntry } from "@enpet/core";
+import {
+  type AppConfig,
+  DEFAULT_VOCAB_FORMAT,
+  type ScenarioContent,
+  type SourceEntry,
+} from "@enpet/core";
 import type { ContentGenerator } from "@enpet/evaluation";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { buildApp, type EnPetApp } from "./app.js";
@@ -13,6 +18,7 @@ const baseConfig: AppConfig = {
   timeZone: "Asia/Shanghai",
   vocabDir: "/tmp/does-not-matter",
   vocabFilePrefix: "english-words",
+  vocabFormat: DEFAULT_VOCAB_FORMAT,
   databasePath: ":memory:",
   reportsDir: "/tmp/enpet-test/reports",
   reviewQueuePath: "/tmp/enpet-test/review-queue.md",
@@ -70,6 +76,58 @@ describe("API", () => {
       expect(body.message).toContain("english-words");
     } finally {
       await empty.close();
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  // 引导创建的示例词库必须能被原样导入：格式探测不能被"已存默认格式"挡住
+  it("imports the sample vocabulary the wizard just created", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "enpet-sample-"));
+    const vocabDir = path.join(directory, "vault");
+    const { vocabFormat: _ignored, ...withoutFormat } = baseConfig;
+    const scoped = await buildApp(
+      { ...withoutFormat, vocabDir, databasePath: path.join(directory, "enpet.sqlite3") },
+      new TestGenerator(),
+    );
+    try {
+      await scoped.inject({
+        method: "POST",
+        url: "/api/onboarding/setup-vault",
+        payload: { vaultPath: vocabDir, withSample: true },
+      });
+      const response = await scoped.inject({ method: "POST", url: "/api/import" });
+      expect(response.statusCode).toBe(200);
+      const body = response.json();
+      expect(body.files).toBe(1);
+      expect(body.inserted).toBe(6);
+      expect(body.issues).toEqual([]);
+    } finally {
+      await scoped.close();
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  // 词库目录必须是可以被 Obsidian 直接打开的 vault
+  it("makes the vocabulary directory an Obsidian vault", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "enpet-vault-"));
+    const vocabDir = path.join(directory, "vault");
+    const scoped = await buildApp(
+      { ...baseConfig, vocabDir, databasePath: path.join(directory, "enpet.sqlite3") },
+      new TestGenerator(),
+    );
+    try {
+      const response = await scoped.inject({
+        method: "POST",
+        url: "/api/onboarding/setup-vault",
+        payload: { vaultPath: vocabDir, withSample: true },
+      });
+      expect(response.statusCode).toBe(200);
+      expect(existsSync(path.join(vocabDir, ".obsidian", "app.json"))).toBe(true);
+      expect(response.json().obsidianLink).toBe(
+        `obsidian://open?path=${encodeURIComponent(vocabDir)}`,
+      );
+    } finally {
+      await scoped.close();
       await rm(directory, { recursive: true, force: true });
     }
   });
