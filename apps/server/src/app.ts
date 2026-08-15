@@ -260,11 +260,17 @@ export async function buildApp(
     }
 
     try {
-      const session =
+      const outcome =
         task.type === "new_learning"
           ? await studyService.createNewLearningSession(todayInTimeZone(config.timeZone))
           : studyService.createReviewSession(todayInTimeZone(config.timeZone));
-      return { taskId, runAt: new Date().toISOString(), success: true, sessionId: session?.id };
+      return {
+        taskId,
+        runAt: new Date().toISOString(),
+        success: true,
+        sessionId: outcome.session?.id,
+        reason: outcome.reason,
+      };
     } catch (error) {
       return {
         taskId,
@@ -384,8 +390,7 @@ export async function buildApp(
 
   app.post("/api/sessions/new/today", async (request) => {
     const { date = todayInTimeZone(config.timeZone) } = dateBodySchema.parse(request.body ?? {});
-    const session = await studyService.createNewLearningSession(date);
-    return { session, reason: session ? null : "No new learning task for this date" };
+    return studyService.createNewLearningSession(date);
   });
 
   app.get("/api/sessions/new/today", async (request) => {
@@ -403,8 +408,7 @@ export async function buildApp(
 
   app.post("/api/sessions/review/today", async (request) => {
     const { date = todayInTimeZone(config.timeZone) } = dateBodySchema.parse(request.body ?? {});
-    const session = studyService.createReviewSession(date);
-    return { session, reason: session ? null : "No review task for this date" };
+    return studyService.createReviewSession(date);
   });
 
   app.get("/api/sessions/review/today", async (request) => {

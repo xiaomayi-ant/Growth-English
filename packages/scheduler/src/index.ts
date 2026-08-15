@@ -1,4 +1,4 @@
-import { isWeekend, type Rating, type StudySession } from "@enpet/core";
+import { isWeekend, type Rating, type SessionOutcome, type StudySession } from "@enpet/core";
 import type { EnPetDatabase } from "@enpet/database";
 import type { AnswerEvaluator, ContentGenerator } from "@enpet/evaluation";
 
@@ -32,15 +32,23 @@ export class StudyService {
     private readonly limits: StudyLimits,
   ) {}
 
-  async createNewLearningSession(date: string): Promise<StudySession | null> {
-    if (isWeekend(date)) return null;
+  async createNewLearningSession(date: string): Promise<SessionOutcome> {
+    if (isWeekend(date)) return { session: null, reason: "weekend" };
     const existing = this.database.getSessionByDate(date, "new_learning");
-    if (existing) return existing;
+    if (existing) return { session: existing, reason: null };
+    // getCurrentFileIndex 返回的是「还有未学词」的文件，词学完后它同样是 null，
+    // 所以「一个词都没有」和「都学完了」得靠总词条数来分辨
     const fileIndex = this.database.getCurrentFileIndex();
-    if (fileIndex === null) return null;
+    if (fileIndex === null) {
+      const empty = this.database.countSourceEntries() === 0;
+      return { session: null, reason: empty ? "no-vocabulary" : "all-learned" };
+    }
     const candidates = this.database.getUnlearnedEntries(fileIndex);
-    if (candidates.length === 0) return null;
-    const scenario = await this.contentGenerator.generateScenario(candidates, this.limits.newWordsPerDay);
+    if (candidates.length === 0) return { session: null, reason: "all-learned" };
+    const scenario = await this.contentGenerator.generateScenario(
+      candidates,
+      this.limits.newWordsPerDay,
+    );
     const byId = new Map(candidates.map((entry) => [entry.id, entry]));
     const selected = [...new Set(scenario.selectedEntryIds)]
       .map((id) => byId.get(id))
@@ -49,15 +57,20 @@ export class StudyService {
     if (selected.length === 0) {
       throw new Error("Content generator did not select any valid source entries");
     }
-    return this.database.createNewSession(date, selected, {
+    const session = this.database.createNewSession(date, selected, {
       ...scenario,
       selectedEntryIds: selected.map((entry) => entry.id),
     });
+    return { session, reason: null };
   }
 
-  createReviewSession(date: string): StudySession | null {
-    if (isWeekend(date)) return null;
-    return this.database.createReviewSession(date, this.limits.reviewLimit);
+  // 没有到期词时照样建会话（items 为空），所以这里只有周末一种拒绝
+  createReviewSession(date: string): SessionOutcome {
+    if (isWeekend(date)) return { session: null, reason: "weekend" };
+    return {
+      session: this.database.createReviewSession(date, this.limits.reviewLimit),
+      reason: null,
+    };
   }
 
   async submitItem(

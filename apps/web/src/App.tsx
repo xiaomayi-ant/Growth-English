@@ -1,4 +1,11 @@
-import type { Rating, ReviewQueue, SessionItem, SessionStatus, StudySession } from "@enpet/core";
+import type {
+  Rating,
+  ReviewQueue,
+  SessionItem,
+  SessionRefusal,
+  SessionStatus,
+  StudySession,
+} from "@enpet/core";
 import {
   BookOpen,
   Check,
@@ -35,6 +42,23 @@ const sessionStatusLabels: Record<SessionStatus, string> = {
   completed: "已完成",
   abandoned: "已放弃",
 };
+
+/**
+ * 服务端建不出会话时返回的是 200 加一个 session:null，不是错误。调用方只 catch
+ * 异常的话就会把「什么都没发生」当成功——引导里那句「设置完成 🎉」就是这么来的。
+ */
+function refusalMessage(reason: SessionRefusal | null): string {
+  switch (reason) {
+    case "weekend":
+      return "今天是周末，学习和复习都顺延到下一个工作日。";
+    case "no-vocabulary":
+      return "还没有词库，先导入词库或用示例词开始。";
+    case "all-learned":
+      return "当前词库里的词都学过了，导入新的词库继续。";
+    default:
+      return "暂时创建不了今天的任务。";
+  }
+}
 
 function EmptyState({ title, detail }: { title: string; detail: string }) {
   return (
@@ -610,6 +634,7 @@ export default function App() {
                   onCreate={async () => {
                     const response = await api.createNewSession();
                     setNewSession(response.session);
+                    if (!response.session) setNotice(refusalMessage(response.reason));
                   }}
                   onSessionChange={(session) => {
                     setNewSession(session);
@@ -639,6 +664,7 @@ export default function App() {
                     onCreate={async () => {
                       const response = await api.createReviewSession();
                       setReviewSession(response.session);
+                      if (!response.session) setNotice(refusalMessage(response.reason));
                     }}
                     onSessionChange={(session) => {
                       setReviewSession(session);

@@ -69,6 +69,17 @@ export interface StudySession {
   items: SessionItem[];
 }
 
+/**
+ * 建不出会话的原因。服务端返回 200 加 session:null，界面靠这个说清楚发生了什么，
+ * 而不是让用户点了按钮却毫无反应。
+ */
+export type SessionRefusal = "weekend" | "no-vocabulary" | "all-learned";
+
+export interface SessionOutcome {
+  session: StudySession | null;
+  reason: SessionRefusal | null;
+}
+
 export interface ReviewQueueItem {
   learningItemId: number;
   sourceEntry: SourceEntry;

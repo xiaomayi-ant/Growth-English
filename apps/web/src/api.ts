@@ -5,6 +5,7 @@ import type {
   OnboardingState,
   Rating,
   ReviewQueue,
+  SessionOutcome,
   SourceEntry,
   StudySession,
   VocabFormat,
@@ -36,10 +37,7 @@ interface ApiError {
   details?: unknown;
 }
 
-interface SessionResponse {
-  session: StudySession | null;
-  reason?: string | null;
-}
+type SessionResponse = SessionOutcome;
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const headers: Record<string, string> = { ...(init?.headers as Record<string, string>) };

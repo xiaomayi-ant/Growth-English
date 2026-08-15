@@ -8,7 +8,7 @@ import {
   type ScenarioContent,
   type SourceEntry,
 } from "@enpet/core";
-import type { ContentGenerator } from "@enpet/evaluation";
+import { type ContentGenerator, DeterministicAnswerEvaluator } from "@enpet/evaluation";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { buildApp, type EnPetApp } from "./app.js";
 
@@ -147,6 +147,110 @@ describe("API", () => {
       await scoped.close();
       await rm(directory, { recursive: true, force: true });
     }
+  });
+
+  // 创建学习任务返回 200 + session:null 时，前端只 catch 异常不看响应体，就会
+  // 把「什么都没发生」当成功。要让每种拒绝都带上可分辨的原因，界面才能说清楚。
+  describe("refusing to create a session", () => {
+    it("tells weekends apart from other refusals", async () => {
+      const response = await app.inject({
+        method: "POST",
+        url: "/api/sessions/new/today",
+        payload: { date: "2026-07-11" },
+      });
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toMatchObject({ session: null, reason: "weekend" });
+    });
+
+    it("reports an empty vocabulary as its own reason", async () => {
+      const directory = await mkdtemp(path.join(tmpdir(), "enpet-no-vocab-"));
+      const scoped = await buildApp(
+        { ...baseConfig, databasePath: path.join(directory, "enpet.sqlite3") },
+        new TestGenerator(),
+      );
+      try {
+        const response = await scoped.inject({
+          method: "POST",
+          url: "/api/sessions/new/today",
+          payload: { date: "2026-07-06" },
+        });
+        expect(response.json()).toMatchObject({ session: null, reason: "no-vocabulary" });
+      } finally {
+        await scoped.close();
+        await rm(directory, { recursive: true, force: true });
+      }
+    });
+
+    // 词条要评过分才算学过（创建会话只写 session_items，learning_items 是评分时建的），
+    // 所以这里必须真的把一整轮走完
+    it("reports a finished vocabulary as its own reason", async () => {
+      const directory = await mkdtemp(path.join(tmpdir(), "enpet-all-learned-"));
+      const scoped = await buildApp(
+        { ...baseConfig, databasePath: path.join(directory, "enpet.sqlite3") },
+        new TestGenerator(),
+        new DeterministicAnswerEvaluator(),
+      );
+      try {
+        scoped.enPetDatabase.importEntries(
+          Array.from({ length: 6 }, (_, index) => ({
+            id: `f001-r001-c0${index + 1}`,
+            fileIndex: 1,
+            rowIndex: 1,
+            columnIndex: index + 1,
+            sourcePath: "/vault/english-words.md",
+            word: `word-${index + 1}`,
+            meaning: `meaning-${index + 1}`,
+            phonetic: "-",
+            sourceOrder: 100_000 + index,
+          })),
+          1,
+          [],
+        );
+
+        const created = await scoped.inject({
+          method: "POST",
+          url: "/api/sessions/new/today",
+          payload: { date: "2026-07-06" },
+        });
+        const session = created.json().session;
+        for (const item of session.items) {
+          await scoped.inject({
+            method: "POST",
+            url: `/api/sessions/${session.id}/items/${item.sourceEntry.id}`,
+            payload: { answer: item.sourceEntry.meaning, rating: "good" },
+          });
+        }
+
+        const response = await scoped.inject({
+          method: "POST",
+          url: "/api/sessions/new/today",
+          payload: { date: "2026-07-07" },
+        });
+        expect(response.json()).toMatchObject({ session: null, reason: "all-learned" });
+      } finally {
+        await scoped.close();
+        await rm(directory, { recursive: true, force: true });
+      }
+    });
+
+    it("carries no reason when the session is actually created", async () => {
+      const response = await app.inject({
+        method: "POST",
+        url: "/api/sessions/new/today",
+        payload: { date: "2026-07-06" },
+      });
+      expect(response.json().session).not.toBeNull();
+      expect(response.json().reason).toBeNull();
+    });
+
+    it("refuses review sessions on weekends with the same vocabulary", async () => {
+      const response = await app.inject({
+        method: "POST",
+        url: "/api/sessions/review/today",
+        payload: { date: "2026-07-11" },
+      });
+      expect(response.json()).toMatchObject({ session: null, reason: "weekend" });
+    });
   });
 
   // 空词库时主界面给的是「用示例词先试试」一个按钮，它背后就是这个接口：
