@@ -1,5 +1,24 @@
 import { describe, expect, it } from "vitest";
-import { buildReviewDates, nextWorkday, todayInTimeZone } from "./dates.js";
+import { buildReviewDates, nextWorkday, reviewOffsetForRound, todayInTimeZone } from "./dates.js";
+
+// 界面上的 D 记号说的是「学习后第几天」，不是第几轮。把轮次号直接当天数，
+// 第 2 轮会显示成 D2（实际 D3）、第 3 轮显示 D3（实际 D7），越往后偏得越远。
+describe("reviewOffsetForRound", () => {
+  it("maps each round to the day it actually falls on", () => {
+    expect([1, 2, 3, 4, 5].map(reviewOffsetForRound)).toEqual([1, 3, 7, 14, 21]);
+  });
+
+  it("agrees with the schedule buildReviewDates produces", () => {
+    for (const date of buildReviewDates("2026-07-06")) {
+      expect(reviewOffsetForRound(date.roundNumber)).toBe(date.offsetDays);
+    }
+  });
+
+  it("returns null outside the five rounds instead of guessing", () => {
+    expect(reviewOffsetForRound(0)).toBeNull();
+    expect(reviewOffsetForRound(6)).toBeNull();
+  });
+});
 
 describe("review dates", () => {
   it("builds the fixed five-round schedule", () => {

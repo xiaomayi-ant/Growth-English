@@ -61,6 +61,15 @@ export interface ReviewDate {
   effectiveDueOn: string;
 }
 
+/**
+ * 第几轮复习落在学习后的第几天。界面上的 D 记号指的是天数（D1/D3/D7/D14/D21），
+ * 拿轮次号当天数会越差越远——第 2 轮是 D3，第 3 轮是 D7。
+ * 超出五轮返回 null，让调用方自己决定怎么显示，而不是编一个天数出来。
+ */
+export function reviewOffsetForRound(roundNumber: number): ReviewOffset | null {
+  return REVIEW_OFFSETS[roundNumber - 1] ?? null;
+}
+
 export function buildReviewDates(introducedOn: string): ReviewDate[] {
   return REVIEW_OFFSETS.map((offsetDays, index) => {
     const scheduledOn = addCalendarDays(introducedOn, offsetDays);

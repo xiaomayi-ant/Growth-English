@@ -6,6 +6,9 @@ import type {
   SessionStatus,
   StudySession,
 } from "@enpet/core";
+// 只从纯逻辑子路径取运行时代码：@enpet/core 根导出连着 config/vault，
+// 那里有 node:fs，整包引进浏览器 bundle 会直接构建失败
+import { reviewOffsetForRound } from "@enpet/core/dates";
 import {
   BookOpen,
   Check,
@@ -42,6 +45,16 @@ const sessionStatusLabels: Record<SessionStatus, string> = {
   completed: "已完成",
   abandoned: "已放弃",
 };
+
+/**
+ * currentFileIndex 是「还有未学词的文件」，词全部学完后它也会变成 null——
+ * 直接拿它判断有没有词库，就会出现「8 个词条 / 等待词库」这种自相矛盾的说法。
+ */
+function vocabularyStatus(health: { sourceEntries: number; currentFileIndex: number | null }) {
+  if (health.sourceEntries === 0) return "等待词库";
+  if (health.currentFileIndex === null) return "词都学过了";
+  return `当前文档 ${health.currentFileIndex}`;
+}
 
 /**
  * 服务端建不出会话时返回的是 200 加一个 session:null，不是错误。调用方只 catch
@@ -157,7 +170,12 @@ function WordExercise({ item, busy, onSubmit }: WordExerciseProps) {
           <h3>{item.sourceEntry.word}</h3>
         </div>
         <div className="word-meta">
-          {item.roundNumber ? <span>D{item.roundNumber}</span> : <span>NEW</span>}
+          {/* D 记号是「学习后第几天」，不是第几轮：第 2 轮是 D3，第 3 轮是 D7 */}
+          {item.roundNumber ? (
+            <span>{`D${reviewOffsetForRound(item.roundNumber) ?? item.roundNumber}`}</span>
+          ) : (
+            <span>NEW</span>
+          )}
         </div>
       </div>
 
@@ -545,9 +563,7 @@ export default function App() {
               <span className={`status-dot ${health ? "online" : "offline"}`} />
               <div>
                 <strong>{health ? `${health.sourceEntries} 个词条` : "服务未连接"}</strong>
-                <span>
-                  {health?.currentFileIndex ? `当前文档 ${health.currentFileIndex}` : "等待词库"}
-                </span>
+                <span>{health ? vocabularyStatus(health) : "等待词库"}</span>
               </div>
             </div>
           </aside>
