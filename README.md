@@ -7,7 +7,7 @@ EnPet 读取本机 vault（词库目录）中的 Markdown 词库表格，把学�
 - **词库导入**：解析 `english-words*.md` 表格，按来源位置生成稳定 ID，幂等 upsert（存在即更新、不存在则插入），不修改原始 Markdown
 - **固定复习周期**：每个词条按 D1 / D3 / D7 / D14 / D21 五轮复习，周末自动顺延，D21 后关闭生命周期
 - **独立任务**：每日新词学习（默认 6 个）与到期复习是两个互不影响的会话
-- **首启引导**：检测到没有词库或数据库时进入引导流程，自动创建默认 vault 结构和示例词库
+- **开箱即用**：首次打开直接进主界面，词库为空时就地给出「导入词库」和「用 6 个示例词先试试」两个入口，不拦一道启动向导
 - **应用内设置**：词库目录、每日新词数、复习上限、提醒时间可在设置页修改，写入 `settings.json`
 - **Markdown 归档**：每日报告与待复习快照写入 vault，便于在 Obsidian 中阅读、搜索和回顾
 - **本地优先**：所有数据保存在本机 SQLite，无外部服务依赖
@@ -19,7 +19,7 @@ pnpm install
 pnpm dev
 ```
 
-打开 http://127.0.0.1:5173，或用嵌入该地址的 Obsidian 笔记打开同一界面。首次启动会进入引导流程；已有数据时点击 **同步词库** 导入词条，导入幂等。
+打开 http://127.0.0.1:5173，或用嵌入该地址的 Obsidian 笔记打开同一界面。词库为空时主界面会给出导入入口；已有数据时点击 **同步词库** 导入词条，导入幂等。
 
 也可以构建后以单服务方式运行：
 
@@ -85,17 +85,17 @@ GitHub Actions 自动构建两个架构的 dmg 并上传到 Releases 草稿，�
 set -a && source .env && set +a
 ```
 
-### 测试引导流程
+### 以新用户身份试用
 
-macOS 上卸载 `.app` 不会删除 `~/Library/Application Support/` 下的数据，所以重装安装包并不会重新触发引导——这是所有 Mac 应用的行为，为的是升级不丢数据。想看引导，把数据目录整个挪到临时位置即可：
+macOS 上卸载 `.app` 不会删除 `~/Library/Application Support/` 下的数据，所以重装安装包看到的仍然是老数据——这是所有 Mac 应用的行为，为的是升级不丢数据。想看新用户的第一屏，把数据目录整个挪到临时位置即可：
 
 ```bash
-ENPET_DATA_DIR=/tmp/enpet-onboarding open -a EnPet
+ENPET_DATA_DIR=/tmp/enpet-fresh open -a EnPet
 ```
 
-`ENPET_DATA_DIR` 生效时会跳过 En Play 迁移和旧数据库搬运，否则隔离目录会被填成「老用户」，引导照样不出现。真实数据目录全程不受影响。
+`ENPET_DATA_DIR` 生效时会跳过 En Play 迁移和旧数据库搬运，否则隔离目录会被填成「老用户」，空词库的入口就不会出现。真实数据目录全程不受影响。
 
-注意两点：Electron 自身的浏览器缓存仍写在真实的 userData 下（不影响引导判定）；单实例锁也在那里，所以隔离实例和正常实例不能同时运行。
+注意两点：Electron 自身的浏览器缓存仍写在真实的 userData 下（不影响词库判定）；单实例锁也在那里，所以隔离实例和正常实例不能同时运行。
 
 要彻底回到「从未安装过」的状态（会删掉真实数据），用 `pnpm reset:local`，先看预演再加 `--yes`。
 
@@ -110,11 +110,11 @@ ENPET_DATA_DIR=/tmp/enpet-onboarding open -a EnPet
 
 ```text
 apps/
-├── web/        # React + Vite 前端（含引导页与设置页）
+├── web/        # React + Vite 前端（含导入预览与设置页）
 ├── server/     # Fastify 本地 API（托管前端静态文件）
 └── desktop/    # Electron 桌面壳与 dmg 打包
 packages/
-├── core/             # 共享类型、配置、日期规则、引导状态、任务调度
+├── core/             # 共享类型、配置、日期规则、vault 结构、任务调度
 ├── database/         # SQLite schema 与访问层（node:sqlite）
 ├── vocabulary-import/ # Markdown 词库解析
 ├── scheduler/        # 学习与复习状态机
@@ -141,6 +141,6 @@ Node.js 22 · pnpm workspace（工作区） · TypeScript strict · Fastify · R
 
 ## 当前范围
 
-MVP（最小可用版本）已完成：Markdown 导入、稳定位置 ID、SQLite migrations、五轮复习调度、周末顺延、幂等会话、本地 API、响应式 UI、首启引导、设置页、Markdown 快照、SQLite 备份、macOS 桌面打包与 CI（持续集成）发版。
+MVP（最小可用版本）已完成：Markdown 导入、稳定位置 ID、SQLite migrations、五轮复习调度、周末顺延、幂等会话、本地 API、响应式 UI、空词库入口、设置页、Markdown 快照、SQLite 备份、macOS 桌面打包与 CI（持续集成）发版。
 
 待做：语义选词与短文生成、开放式答案评测落地、工作日定时任务、拼写题等题型扩展（详见 `DEVELOPMENT_TODO.md`）。桌面端后续项：苹果签名公证、自定义图标、自动更新。

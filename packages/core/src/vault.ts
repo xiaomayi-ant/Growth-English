@@ -1,46 +1,7 @@
 import { existsSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
 import type { AppConfig } from "./config.js";
-
-export interface OnboardingState {
-  step: "welcome" | "setup" | "import" | "first-lesson" | "complete";
-  hasExistingData: boolean;
-  completedSteps: string[];
-}
-
-// 用于标记onboarding完成的文件
-const ONBOARDING_COMPLETE_FILE = ".onboarding-complete";
-
-export function detectOnboardingState(config: AppConfig): OnboardingState {
-  const hasExistingData = existsSync(config.databasePath);
-  const hasVaultFiles = existsSync(path.join(config.vocabDir, `${config.vocabFilePrefix}.md`));
-  const hasOnboardingComplete = existsSync(
-    path.join(path.dirname(config.databasePath), ONBOARDING_COMPLETE_FILE),
-  );
-
-  if (hasOnboardingComplete && hasExistingData) {
-    return {
-      step: "complete",
-      hasExistingData: true,
-      completedSteps: ["setup", "import", "first-lesson"],
-    };
-  }
-
-  const completedSteps: string[] = [];
-  if (hasVaultFiles) completedSteps.push("setup");
-  if (hasExistingData) completedSteps.push("import");
-
-  // 根据完成进度返回相应步骤
-  if (!hasVaultFiles) {
-    return { step: "setup", hasExistingData, completedSteps };
-  } else if (!hasExistingData) {
-    return { step: "import", hasExistingData: false, completedSteps };
-  } else {
-    return { step: "first-lesson", hasExistingData: true, completedSteps };
-  }
-}
 
 // 一词一行的三列表：在 Obsidian 里就是一张普通表格，扫读、排序、搜索都自然。
 // 旧的 `单词<br>释义<br>音标` 堆叠格式仍然能被导入器探测并解析，只是不再作为新建词库的样子。
@@ -101,20 +62,3 @@ ${withSample ? SAMPLE_ROWS : ""}`;
   }
 }
 
-export async function markOnboardingComplete(config: AppConfig): Promise<void> {
-  const { writeFile: fsWriteFile } = await import("node:fs/promises");
-  const completeMarker = path.join(path.dirname(config.databasePath), ONBOARDING_COMPLETE_FILE);
-  await fsWriteFile(completeMarker, new Date().toISOString(), "utf-8");
-}
-
-export function getDefaultVaultPath(): string {
-  return "~/Documents/EnPet/vault";
-}
-
-export function getRecommendedPaths(): { vocabDir: string; databasePath: string } {
-  const dataDir = path.join(os.homedir(), "Library", "Application Support", "EnPet");
-  return {
-    vocabDir: path.join(dataDir, "vault"),
-    databasePath: path.join(dataDir, "enpet.sqlite3"),
-  };
-}

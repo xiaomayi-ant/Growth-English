@@ -2,7 +2,6 @@ import type {
   EditableSettings,
   ImportIssue,
   ImportSummary,
-  OnboardingState,
   Rating,
   ReviewQueue,
   SessionOutcome,
@@ -72,17 +71,6 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(settings),
     }),
-  onboarding: () => request<OnboardingState>("/api/onboarding"),
-  setupVault: (vaultPath?: string, withSample = true) =>
-    request<{ success: boolean; message: string; vocabDir: string }>(
-      "/api/onboarding/setup-vault",
-      {
-        method: "POST",
-        body: JSON.stringify({ vaultPath, withSample }),
-      },
-    ),
-  completeOnboarding: () =>
-    request<{ success: boolean }>("/api/onboarding/complete", { method: "POST" }),
   previewImport: (format?: Partial<VocabFormat>) =>
     request<ImportPreview>("/api/import/preview", {
       method: "POST",

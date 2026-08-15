@@ -93,22 +93,18 @@ describe("API", () => {
     }
   });
 
-  // 引导创建的示例词库必须能被原样导入：格式探测不能被"已存默认格式"挡住
-  it("imports the sample vocabulary the wizard just created", async () => {
+  // 用户设置里存的格式可能是旧的 cell 堆叠格式，示例词库却是一词一行的表格，
+  // 拿存量格式去解析会把 6 个词拆成 21 条垃圾——所以这条路径必须自己探测格式
+  it("imports the sample vocabulary regardless of the stored format", async () => {
     const directory = await mkdtemp(path.join(tmpdir(), "enpet-sample-"));
     const vocabDir = path.join(directory, "vault");
-    const { vocabFormat: _ignored, ...withoutFormat } = baseConfig;
-    const scoped = await buildTestApp(
-      { ...withoutFormat, vocabDir, databasePath: path.join(directory, "enpet.sqlite3") },
-      new TestGenerator(),
-    );
+    const scoped = await buildTestApp({
+      ...baseConfig,
+      vocabDir,
+      databasePath: path.join(directory, "enpet.sqlite3"),
+    });
     try {
-      await scoped.inject({
-        method: "POST",
-        url: "/api/onboarding/setup-vault",
-        payload: { vaultPath: vocabDir, withSample: true },
-      });
-      const response = await scoped.inject({ method: "POST", url: "/api/import" });
+      const response = await scoped.inject({ method: "POST", url: "/api/vault/sample" });
       expect(response.statusCode).toBe(200);
       const body = response.json();
       expect(body.files).toBe(1);
@@ -124,38 +120,17 @@ describe("API", () => {
   it("makes the vocabulary directory an Obsidian vault", async () => {
     const directory = await mkdtemp(path.join(tmpdir(), "enpet-vault-"));
     const vocabDir = path.join(directory, "vault");
-    const scoped = await buildTestApp(
-      { ...baseConfig, vocabDir, databasePath: path.join(directory, "enpet.sqlite3") },
-      new TestGenerator(),
-    );
+    const scoped = await buildTestApp({
+      ...baseConfig,
+      vocabDir,
+      databasePath: path.join(directory, "enpet.sqlite3"),
+    });
     try {
-      const response = await scoped.inject({
-        method: "POST",
-        url: "/api/onboarding/setup-vault",
-        payload: { vaultPath: vocabDir, withSample: true },
-      });
-      expect(response.statusCode).toBe(200);
+      await scoped.inject({ method: "POST", url: "/api/vault/sample" });
       expect(existsSync(path.join(vocabDir, ".obsidian", "app.json"))).toBe(true);
-      expect(response.json().obsidianLink).toBe(
-        `obsidian://open?path=${encodeURIComponent(vocabDir)}`,
-      );
-    } finally {
-      await scoped.close();
-      await rm(directory, { recursive: true, force: true });
-    }
-  });
 
-  it("writes the onboarding marker so the wizard stops replaying", async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "enpet-onboarding-"));
-    const databasePath = path.join(directory, "enpet.sqlite3");
-    const scoped = await buildTestApp({ ...baseConfig, databasePath }, new TestGenerator());
-    try {
-      expect((await scoped.inject({ method: "GET", url: "/api/onboarding" })).json().step).not.toBe(
-        "complete",
-      );
-      const response = await scoped.inject({ method: "POST", url: "/api/onboarding/complete" });
-      expect(response.statusCode).toBe(200);
-      expect(existsSync(path.join(directory, ".onboarding-complete"))).toBe(true);
+      const health = (await scoped.inject({ method: "GET", url: "/api/health" })).json();
+      expect(health.obsidianLink).toBe(`obsidian://open?path=${encodeURIComponent(vocabDir)}`);
     } finally {
       await scoped.close();
       await rm(directory, { recursive: true, force: true });

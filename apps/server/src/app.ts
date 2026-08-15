@@ -4,11 +4,9 @@ import { fileURLToPath } from "node:url";
 import {
   type AppConfig,
   createDefaultVaultStructure,
-  detectOnboardingState,
   type EditableSettings,
   editableSettingsSchema,
   ensureVaultDirectories,
-  markOnboardingComplete,
   obsidianVaultLink,
   settingsPathForDatabasePath,
   TaskScheduler,
@@ -205,45 +203,6 @@ export async function buildApp(
       await ensureVaultDirectories(config);
     }
 
-    return { success: true };
-  });
-
-  app.get("/api/onboarding", async () => {
-    return detectOnboardingState(config);
-  });
-
-  app.post("/api/onboarding/setup-vault", async (request) => {
-    const body = z
-      .object({ vaultPath: z.string().optional(), withSample: z.boolean().optional() })
-      .parse(request.body || {});
-    const vaultPath = body.vaultPath || config.vocabDir;
-
-    try {
-      const expandedPath = expandHome(vaultPath);
-      await createDefaultVaultStructure(
-        { ...config, vocabDir: expandedPath },
-        body.withSample ?? true,
-      );
-      // 必须落盘，否则 loadConfig 下次仍然读默认目录，导入会找不到刚创建的词库
-      await writeSettingsFile(settingsPathForDatabasePath(config.databasePath), {
-        vocabDir: expandedPath,
-      });
-      config.vocabDir = expandedPath;
-      return {
-        success: true,
-        message: "词库目录已创建",
-        vocabDir: expandedPath,
-        obsidianLink: obsidianVaultLink(expandedPath),
-      };
-    } catch (error) {
-      throw new Error(
-        `设置词库目录失败: ${error instanceof Error ? error.message : String(error)}`,
-      );
-    }
-  });
-
-  app.post("/api/onboarding/complete", async () => {
-    await markOnboardingComplete(config);
     return { success: true };
   });
 

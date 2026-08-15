@@ -78,14 +78,14 @@ export function ImportPreview({ onImported, onCancel }: ImportPreviewProps) {
   };
 
   return (
-    <div className="onboarding-container">
-      <div className="onboarding-card preview-card">
-        <div className="onboarding-header">
+    <div className="panel-container">
+      <div className="panel-card preview-card">
+        <div className="panel-header">
           <h1>导入预览</h1>
           <p>确认解析结果无误后再写入数据库。原始 Markdown 不会被修改。</p>
         </div>
 
-        <div className="onboarding-content">
+        <div className="panel-content">
           {loading ? (
             <p className="preview-status">
               <LoaderCircle className="spin" aria-hidden="true" /> 正在解析…
@@ -219,7 +219,7 @@ export function ImportPreview({ onImported, onCancel }: ImportPreviewProps) {
           ) : null}
         </div>
 
-        <div className="onboarding-actions">
+        <div className="panel-actions">
           <button
             type="button"
             className="secondary-button"
