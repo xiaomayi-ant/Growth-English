@@ -71,7 +71,7 @@ GitHub Actions 自动构建两个架构的 dmg 并上传到 Releases 草稿，�
 | `ENPET_DATA_DIR` | `~/Library/Application Support/EnPet` | 数据目录，下面所有路径的默认值都从它派生 |
 | `ENPET_HOST` | `127.0.0.1` | 本地 API 监听地址 |
 | `ENPET_PORT` | `4173` | 浏览器模式 API 端口 |
-| `ENPET_TIMEZONE` | `Asia/Shanghai` | 判断“今天”是哪一天 |
+| `ENPET_TIMEZONE` | 系统时区 | 判断“今天”是哪一天 |
 | `ENPET_VOCAB_DIR` | 数据目录下的 `vault` | `english-words*.md` 所在目录 |
 | `ENPET_DATABASE_PATH` | 数据目录下的 `enpet.sqlite3` | SQLite 文件，同目录读写 `settings.json` |
 | `ENPET_REPORTS_DIR` | `vault/study/reports` | 每日 Markdown 报告目录 |

@@ -7,7 +7,6 @@ import {
   DEFAULT_VOCAB_FORMAT,
   type ScenarioContent,
   type SourceEntry,
-  todayInTimeZone,
 } from "@enpet/core";
 import { type ContentGenerator, DeterministicAnswerEvaluator } from "@enpet/evaluation";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -280,8 +279,11 @@ describe("API", () => {
     it("drops logs older than a week so they cannot pile up forever", async () => {
       const logDir = path.join(directory, "logs");
       await mkdir(logDir, { recursive: true });
+      // 日志按系统本地日期分文件——它是给人排查用的，要跟用户看到的时间对得上，
+      // 而不是跟学习用的时区走
+      const localToday = new Date().toLocaleDateString("en-CA");
       const stale = path.join(logDir, "enpet-2020-01-01.log");
-      const recent = path.join(logDir, `enpet-${todayInTimeZone("Asia/Shanghai")}.log`);
+      const recent = path.join(logDir, `enpet-${localToday}.log`);
       await writeFile(stale, "old\n");
       await writeFile(recent, "new\n");
 

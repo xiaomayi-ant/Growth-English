@@ -215,6 +215,15 @@ export async function writeSettingsFile(
 }
 
 // 改名前的 EN_PLAY_* 变量作为回退保留，旧 .env 不改也能启动
+/**
+ * 本地应用的「今天」就该是用户日历上的今天。此前硬编码 Asia/Shanghai，对不在
+ * 东八区的用户来说，学习记录和复习到期日会整体偏一天——机器上是周六，应用里
+ * 已经是周日。
+ */
+function systemTimeZone(): string {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+}
+
 function readEnv(env: NodeJS.ProcessEnv, suffix: string): string | undefined {
   return env[`ENPET_${suffix}`] ?? env[`EN_PLAY_${suffix}`];
 }
@@ -237,7 +246,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   return configSchema.parse({
     host: readEnv(env, "HOST") ?? "127.0.0.1",
     port: Number(readEnv(env, "PORT") ?? 4173),
-    timeZone: readEnv(env, "TIMEZONE") ?? "Asia/Shanghai",
+    timeZone: readEnv(env, "TIMEZONE") ?? systemTimeZone(),
     vocabDir: readEnv(env, "VOCAB_DIR") ?? filteredSaved.vocabDir ?? vaultDir,
     vocabFilePrefix:
       readEnv(env, "VOCAB_FILE_PREFIX") ??

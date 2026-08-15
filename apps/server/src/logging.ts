@@ -29,14 +29,24 @@ function dropStaleLogs(logDir: string, today: string): void {
 }
 
 /**
+ * 日志按系统本地日期分文件。它是给人排查用的，文件名要跟用户看到的时间对得上，
+ * 不跟学习用的时区（ENPET_TIMEZONE）走——那两个可以是不同的日子。
+ * en-CA 的本地化格式恰好就是 YYYY-MM-DD。
+ */
+function localDate(now = new Date()): string {
+  return now.toLocaleDateString("en-CA");
+}
+
+/**
  * 双击启动的应用没有终端，stdout 直接被系统丢掉——出错时用户手上什么线索都没有。
  * 日志同时写进数据目录，事后还能翻。从终端启动时 stdout 照常输出，两边都不耽误。
  *
  * 内存数据库（测试和临时场景）没有数据目录可言，此时只走 stdout，
  * 免得在项目目录里散落日志文件。
  */
-export function createLogStream(databasePath: string, today: string): Writable | undefined {
+export function createLogStream(databasePath: string): Writable | undefined {
   if (databasePath === ":memory:") return undefined;
+  const today = localDate();
 
   const logDir = path.join(path.dirname(databasePath), "logs");
   try {

@@ -27,6 +27,18 @@ describe("loadConfig", () => {
     expect(loadConfig({}).databasePath).toBe(path.join(dataDir, "enpet.sqlite3"));
   });
 
+  // 本地应用的「今天」就该是用户日历上的今天。硬编码某个时区，对不在那个时区的
+  // 用户来说，学习记录和复习到期日会整体偏一天。
+  it("follows the system timezone by default", () => {
+    expect(loadConfig(isolatedEnv).timeZone).toBe(Intl.DateTimeFormat().resolvedOptions().timeZone);
+  });
+
+  it("still lets ENPET_TIMEZONE override the system one", () => {
+    expect(loadConfig({ ...isolatedEnv, ENPET_TIMEZONE: "Asia/Shanghai" }).timeZone).toBe(
+      "Asia/Shanghai",
+    );
+  });
+
   it("defaults study parameters and reminder time", () => {
     const config = loadConfig(isolatedEnv);
     expect(config.newWordsPerDay).toBe(6);

@@ -119,7 +119,7 @@ export async function buildApp(
     evaluator = answerEvaluator;
   }
   // 日志同时落到数据目录：双击启动时没有终端，出了错只有文件里查得到
-  const logStream = createLogStream(config.databasePath, todayInTimeZone(config.timeZone));
+  const logStream = createLogStream(config.databasePath);
   const app = Fastify({
     logger: logStream ? { stream: logStream } : true,
   }) as unknown as EnPetApp;
