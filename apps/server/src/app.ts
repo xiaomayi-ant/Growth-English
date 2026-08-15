@@ -1,4 +1,4 @@
-import { access } from "node:fs/promises";
+import { access, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -192,6 +192,17 @@ export async function buildApp(
     }
     if (patch.vocabDir) {
       patch.vocabDir = expandHome(patch.vocabDir);
+      // 先确认这个目录真的能建、能用，再落盘。顺序反过来的话，一次失败的保存
+      // 会把用不了的路径留在 settings.json 里，下次启动照样读它——一次点击的
+      // 错误就变成了持续故障。
+      try {
+        await mkdir(patch.vocabDir, { recursive: true });
+      } catch (cause) {
+        const reason = cause instanceof Error ? cause.message : String(cause);
+        throw Object.assign(new Error(`无法使用词库目录 ${patch.vocabDir}：${reason}`), {
+          statusCode: 400,
+        });
+      }
     }
 
     await writeSettingsFile(settingsPathForDatabasePath(config.databasePath), patch);
@@ -202,7 +213,6 @@ export async function buildApp(
       // 报告和复习快照住在 vault 里，词库搬家时必须跟着搬
       config.reportsDir = path.join(patch.vocabDir, "study", "reports");
       config.reviewQueuePath = path.join(patch.vocabDir, "study", "review-queue.md");
-      // 只在词库搬家时建目录：没动过位置就不该凭空造出一个目录来
       await ensureVaultDirectories(config);
     }
 

@@ -350,6 +350,48 @@ describe("API", () => {
       expect(settings.reminderTime).toBe("07:15");
     });
 
+    // 用户在设置里填了一个建不出来的目录时，得到的应该是一句能看懂的话，
+    // 而不是 Internal server error
+    it("explains why a vocabulary directory cannot be used", async () => {
+      // 父路径是个文件，任何平台上 mkdir 都会失败
+      const blocker = path.join(directory, "not-a-directory");
+      await writeFile(blocker, "");
+      const unusable = path.join(blocker, "vault");
+
+      const response = await scoped.inject({
+        method: "PUT",
+        url: "/api/settings",
+        payload: { vocabDir: unusable },
+      });
+
+      expect(response.statusCode).toBe(400);
+      expect(response.json().error).toContain(unusable);
+    });
+
+    // 落盘在验证之前的话，一次失败的保存就会把用不了的路径留在 settings.json 里，
+    // 下次启动应用带着它走——错误从一次点击升级成持续故障
+    it("leaves the saved settings untouched when the directory is unusable", async () => {
+      await scoped.inject({
+        method: "PUT",
+        url: "/api/settings",
+        payload: { vocabDir: path.join(directory, "good-vault") },
+      });
+
+      const blocker = path.join(directory, "blocker");
+      await writeFile(blocker, "");
+      await scoped.inject({
+        method: "PUT",
+        url: "/api/settings",
+        payload: { vocabDir: path.join(blocker, "vault") },
+      });
+
+      const onDisk = JSON.parse(await readFile(path.join(directory, "settings.json"), "utf8"));
+      expect(onDisk.vocabDir).toBe(path.join(directory, "good-vault"));
+
+      const current = (await scoped.inject({ method: "GET", url: "/api/settings" })).json();
+      expect(current.vocabDir).toBe(path.join(directory, "good-vault"));
+    });
+
     it("rejects invalid values without writing anything", async () => {
       const response = await scoped.inject({
         method: "PUT",
