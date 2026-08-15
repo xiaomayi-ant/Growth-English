@@ -1,4 +1,4 @@
-import { access, mkdir } from "node:fs/promises";
+import { access, mkdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -195,6 +195,16 @@ export async function buildApp(
       // 先确认这个目录真的能建、能用，再落盘。顺序反过来的话，一次失败的保存
       // 会把用不了的路径留在 settings.json 里，下次启动照样读它——一次点击的
       // 错误就变成了持续故障。
+      const target = await stat(patch.vocabDir).catch(() => null);
+      if (target && !target.isDirectory()) {
+        // 字段问的是目录，但人的第一反应常常是给出词库文件的位置
+        throw Object.assign(
+          new Error(
+            `${patch.vocabDir} 是一个文件，不是目录。词库目录请填它所在的文件夹：${path.dirname(patch.vocabDir)}`,
+          ),
+          { statusCode: 400 },
+        );
+      }
       try {
         await mkdir(patch.vocabDir, { recursive: true });
       } catch (cause) {

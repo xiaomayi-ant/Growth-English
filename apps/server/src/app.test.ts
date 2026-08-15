@@ -350,6 +350,23 @@ describe("API", () => {
       expect(settings.reminderTime).toBe("07:15");
     });
 
+    // 字段问的是「词库目录」，但人的第一反应往往是给出词库文件的位置。
+    // 这时候要直接告诉他该填哪个目录，而不是丢一句 mkdir EEXIST。
+    it("points at the parent directory when given a vocabulary file", async () => {
+      const file = path.join(directory, "english-words.md");
+      await writeFile(file, "# 词库\n");
+
+      const response = await scoped.inject({
+        method: "PUT",
+        url: "/api/settings",
+        payload: { vocabDir: file },
+      });
+
+      expect(response.statusCode).toBe(400);
+      expect(response.json().error).toContain(directory);
+      expect(response.json().error).not.toContain("EEXIST");
+    });
+
     // 用户在设置里填了一个建不出来的目录时，得到的应该是一句能看懂的话，
     // 而不是 Internal server error
     it("explains why a vocabulary directory cannot be used", async () => {
