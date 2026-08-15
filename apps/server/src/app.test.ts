@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import {
@@ -7,6 +7,7 @@ import {
   DEFAULT_VOCAB_FORMAT,
   type ScenarioContent,
   type SourceEntry,
+  todayInTimeZone,
 } from "@enpet/core";
 import { type ContentGenerator, DeterministicAnswerEvaluator } from "@enpet/evaluation";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -240,6 +241,65 @@ describe("API", () => {
       });
       expect(response.json().session).not.toBeNull();
       expect(response.json().reason).toBeNull();
+    });
+  });
+
+  // 双击启动的应用没有终端，stdout 直接被系统丢掉。出错时用户手上什么都没有，
+  // 只能靠猜——这组测试保证日志同时落到数据目录里，事后还能查。
+  describe("log files", () => {
+    let directory: string;
+    let scoped: EnPetApp;
+
+    beforeEach(async () => {
+      directory = await mkdtemp(path.join(tmpdir(), "enpet-logs-"));
+    });
+
+    afterEach(async () => {
+      await scoped?.close();
+      await rm(directory, { recursive: true, force: true });
+    });
+
+    it("records the reason behind a 500 in the data directory", async () => {
+      scoped = await buildTestApp({
+        ...baseConfig,
+        databasePath: path.join(directory, "enpet.sqlite3"),
+      });
+
+      // 词库目录不存在时导入会失败，正好produces一条错误日志
+      await scoped.inject({ method: "POST", url: "/api/import" });
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      const logDir = path.join(directory, "logs");
+      const files = await readdir(logDir);
+      expect(files).toHaveLength(1);
+
+      const contents = await readFile(path.join(logDir, files[0] as string), "utf8");
+      expect(contents).toContain("VOCAB_DIR_NOT_FOUND");
+    });
+
+    it("drops logs older than a week so they cannot pile up forever", async () => {
+      const logDir = path.join(directory, "logs");
+      await mkdir(logDir, { recursive: true });
+      const stale = path.join(logDir, "enpet-2020-01-01.log");
+      const recent = path.join(logDir, `enpet-${todayInTimeZone("Asia/Shanghai")}.log`);
+      await writeFile(stale, "old\n");
+      await writeFile(recent, "new\n");
+
+      scoped = await buildTestApp({
+        ...baseConfig,
+        databasePath: path.join(directory, "enpet.sqlite3"),
+      });
+
+      const files = await readdir(logDir);
+      expect(files).not.toContain("enpet-2020-01-01.log");
+      expect(files).toContain(path.basename(recent));
+    });
+
+    // 测试和临时场景用的是内存数据库，不该在项目目录里散落日志
+    it("writes no log files for an in-memory database", async () => {
+      scoped = await buildTestApp({ ...baseConfig });
+      await scoped.inject({ method: "GET", url: "/api/health" });
+      expect(existsSync(path.join(process.cwd(), "logs"))).toBe(false);
     });
   });
 

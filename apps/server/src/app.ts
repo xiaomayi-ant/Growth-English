@@ -30,6 +30,7 @@ import cors from "@fastify/cors";
 import fastifyStatic from "@fastify/static";
 import Fastify, { type FastifyInstance } from "fastify";
 import { z } from "zod";
+import { createLogStream } from "./logging.js";
 
 const dateBodySchema = z.object({
   date: z
@@ -117,7 +118,11 @@ export async function buildApp(
   } else {
     evaluator = answerEvaluator;
   }
-  const app = Fastify({ logger: true }) as unknown as EnPetApp;
+  // 日志同时落到数据目录：双击启动时没有终端，出了错只有文件里查得到
+  const logStream = createLogStream(config.databasePath, todayInTimeZone(config.timeZone));
+  const app = Fastify({
+    logger: logStream ? { stream: logStream } : true,
+  }) as unknown as EnPetApp;
   const database = await EnPetDatabase.open(config.databasePath);
   app.enPetDatabase = database;
   const taskScheduler = new TaskScheduler(config);

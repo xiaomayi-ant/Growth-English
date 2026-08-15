@@ -62,6 +62,7 @@ GitHub Actions 自动构建两个架构的 dmg 并上传到 Releases 草稿，�
 | 复习快照 | `~/Library/Application Support/EnPet/vault/study/review-queue.md` |
 | 每日报告 | `~/Library/Application Support/EnPet/vault/study/reports/YYYY-MM-DD.md` |
 | 备份 | 数据目录同级的 `backups/enpet-YYYY-MM-DD.sqlite3` |
+| 运行日志 | `~/Library/Application Support/EnPet/logs/enpet-YYYY-MM-DD.log`，保留 7 天 |
 
 配置的优先级是：默认值 < `settings.json` < 环境变量。
 
@@ -83,6 +84,22 @@ GitHub Actions 自动构建两个架构的 dmg 并上传到 Releases 草稿，�
 
 ```bash
 set -a && source .env && set +a
+```
+
+### 出问题时看什么
+
+桌面版双击启动没有终端，stdout 会被系统丢掉，所以日志同时写进数据目录：
+
+```bash
+tail -f ~/Library/Application\ Support/EnPet/logs/enpet-$(date +%F).log
+```
+
+界面上报错时，日志里 `"level":50` 那几行带着完整的错误消息和堆栈。日志按天分文件，保留 7 天，启动时清理更早的。
+
+从终端启动的话，日志同时也打在终端里：
+
+```bash
+/Applications/EnPet.app/Contents/MacOS/EnPet
 ```
 
 ### 以新用户身份试用
