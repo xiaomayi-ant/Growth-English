@@ -23,20 +23,6 @@ export function addCalendarDays(value: string, amount: number): string {
   return formatDateOnly(date);
 }
 
-export function isWeekend(value: string): boolean {
-  assertDateOnly(value);
-  const day = toUtcDate(value).getUTCDay();
-  return day === 0 || day === 6;
-}
-
-export function nextWorkday(value: string): string {
-  let current = value;
-  while (isWeekend(current)) {
-    current = addCalendarDays(current, 1);
-  }
-  return current;
-}
-
 export function differenceInCalendarDays(later: string, earlier: string): number {
   assertDateOnly(later);
   assertDateOnly(earlier);
@@ -58,6 +44,11 @@ export interface ReviewDate {
   roundNumber: number;
   offsetDays: ReviewOffset;
   scheduledOn: string;
+  /**
+   * 目前恒等于 scheduledOn——周末照常复习，没有需要跳过的日子。
+   * 字段保留是因为数据库里存着两列，历史数据中它们可能不同（那时周末会顺延），
+   * 而且将来若要跳过假期，这里就是落点。
+   */
   effectiveDueOn: string;
 }
 
@@ -77,7 +68,7 @@ export function buildReviewDates(introducedOn: string): ReviewDate[] {
       roundNumber: index + 1,
       offsetDays,
       scheduledOn,
-      effectiveDueOn: nextWorkday(scheduledOn),
+      effectiveDueOn: scheduledOn,
     };
   });
 }

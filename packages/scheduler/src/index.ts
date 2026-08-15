@@ -1,4 +1,4 @@
-import { isWeekend, type Rating, type SessionOutcome, type StudySession } from "@enpet/core";
+import type { Rating, SessionOutcome, StudySession } from "@enpet/core";
 import type { EnPetDatabase } from "@enpet/database";
 import type { AnswerEvaluator, ContentGenerator } from "@enpet/evaluation";
 
@@ -33,7 +33,6 @@ export class StudyService {
   ) {}
 
   async createNewLearningSession(date: string): Promise<SessionOutcome> {
-    if (isWeekend(date)) return { session: null, reason: "weekend" };
     const existing = this.database.getSessionByDate(date, "new_learning");
     if (existing) return { session: existing, reason: null };
     // getCurrentFileIndex 返回的是「还有未学词」的文件，词学完后它同样是 null，
@@ -64,9 +63,8 @@ export class StudyService {
     return { session, reason: null };
   }
 
-  // 没有到期词时照样建会话（items 为空），所以这里只有周末一种拒绝
+  // 没有到期词时照样建会话（items 为空），所以复习这条路径不会被拒绝
   createReviewSession(date: string): SessionOutcome {
-    if (isWeekend(date)) return { session: null, reason: "weekend" };
     return {
       session: this.database.createReviewSession(date, this.limits.reviewLimit),
       reason: null,

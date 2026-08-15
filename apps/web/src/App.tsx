@@ -62,8 +62,6 @@ function vocabularyStatus(health: { sourceEntries: number; currentFileIndex: num
  */
 function refusalMessage(reason: SessionRefusal | null): string {
   switch (reason) {
-    case "weekend":
-      return "今天是周末，学习和复习都顺延到下一个工作日。";
     case "no-vocabulary":
       return "还没有词库，先导入词库或用示例词开始。";
     case "all-learned":

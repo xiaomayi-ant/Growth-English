@@ -5,7 +5,7 @@ EnPet 读取本机 vault（词库目录）中的 Markdown 词库表格，把学�
 ## 功能特性
 
 - **词库导入**：解析 `english-words*.md` 表格，按来源位置生成稳定 ID，幂等 upsert（存在即更新、不存在则插入），不修改原始 Markdown
-- **固定复习周期**：每个词条按 D1 / D3 / D7 / D14 / D21 五轮复习，周末自动顺延，D21 后关闭生命周期
+- **固定复习周期**：每个词条按 D1 / D3 / D7 / D14 / D21 五轮复习，每天都可学习和复习，D21 后关闭生命周期
 - **独立任务**：每日新词学习（默认 6 个）与到期复习是两个互不影响的会话
 - **开箱即用**：首次打开直接进主界面，词库为空时就地给出「导入词库」和「用 6 个示例词先试试」两个入口，不拦一道启动向导
 - **应用内设置**：词库目录、每日新词数、复习上限、提醒时间可在设置页修改，写入 `settings.json`
@@ -70,7 +70,7 @@ GitHub Actions 自动构建两个架构的 dmg 并上传到 Releases 草稿，�
 | `ENPET_DATA_DIR` | `~/Library/Application Support/EnPet` | 数据目录，下面所有路径的默认值都从它派生 |
 | `ENPET_HOST` | `127.0.0.1` | 本地 API 监听地址 |
 | `ENPET_PORT` | `4173` | 浏览器模式 API 端口 |
-| `ENPET_TIMEZONE` | `Asia/Shanghai` | 日期与工作日计算 |
+| `ENPET_TIMEZONE` | `Asia/Shanghai` | 判断“今天”是哪一天 |
 | `ENPET_VOCAB_DIR` | 数据目录下的 `vault` | `english-words*.md` 所在目录 |
 | `ENPET_DATABASE_PATH` | 数据目录下的 `enpet.sqlite3` | SQLite 文件，同目录读写 `settings.json` |
 | `ENPET_REPORTS_DIR` | `vault/study/reports` | 每日 Markdown 报告目录 |
@@ -141,6 +141,6 @@ Node.js 22 · pnpm workspace（工作区） · TypeScript strict · Fastify · R
 
 ## 当前范围
 
-MVP（最小可用版本）已完成：Markdown 导入、稳定位置 ID、SQLite migrations、五轮复习调度、周末顺延、幂等会话、本地 API、响应式 UI、空词库入口、设置页、Markdown 快照、SQLite 备份、macOS 桌面打包与 CI（持续集成）发版。
+MVP（最小可用版本）已完成：Markdown 导入、稳定位置 ID、SQLite migrations、五轮复习调度、幂等会话、本地 API、响应式 UI、空词库入口、设置页、Markdown 快照、SQLite 备份、macOS 桌面打包与 CI（持续集成）发版。
 
-待做：语义选词与短文生成、开放式答案评测落地、工作日定时任务、拼写题等题型扩展（详见 `DEVELOPMENT_TODO.md`）。桌面端后续项：苹果签名公证、自定义图标、自动更新。
+待做：语义选词与短文生成、开放式答案评测落地、定时任务、拼写题等题型扩展（详见 `DEVELOPMENT_TODO.md`）。桌面端后续项：苹果签名公证、自定义图标、自动更新。

@@ -140,14 +140,16 @@ describe("API", () => {
   // 创建学习任务返回 200 + session:null 时，前端只 catch 异常不看响应体，就会
   // 把「什么都没发生」当成功。要让每种拒绝都带上可分辨的原因，界面才能说清楚。
   describe("refusing to create a session", () => {
-    it("tells weekends apart from other refusals", async () => {
+    // 周末照常开工：想学的时候就该能学，日历上是星期几不该拦人
+    it("creates sessions on weekends like any other day", async () => {
       const response = await app.inject({
         method: "POST",
         url: "/api/sessions/new/today",
         payload: { date: "2026-07-11" },
       });
       expect(response.statusCode).toBe(200);
-      expect(response.json()).toMatchObject({ session: null, reason: "weekend" });
+      expect(response.json().session).not.toBeNull();
+      expect(response.json().reason).toBeNull();
     });
 
     it("reports an empty vocabulary as its own reason", async () => {
@@ -230,13 +232,14 @@ describe("API", () => {
       expect(response.json().reason).toBeNull();
     });
 
-    it("refuses review sessions on weekends with the same vocabulary", async () => {
+    it("creates review sessions on weekends too", async () => {
       const response = await app.inject({
         method: "POST",
         url: "/api/sessions/review/today",
         payload: { date: "2026-07-11" },
       });
-      expect(response.json()).toMatchObject({ session: null, reason: "weekend" });
+      expect(response.json().session).not.toBeNull();
+      expect(response.json().reason).toBeNull();
     });
   });
 
@@ -421,15 +424,6 @@ describe("API", () => {
     expect(first.statusCode).toBe(200);
     expect(first.json().session.id).toBe("new_learning:2026-07-06");
     expect(second.json().session.id).toBe(first.json().session.id);
-  });
-
-  it("does not create weekday tasks on weekends", async () => {
-    const response = await app.inject({
-      method: "POST",
-      url: "/api/sessions/new/today",
-      payload: { date: "2026-07-11" },
-    });
-    expect(response.json().session).toBeNull();
   });
 
   it("limits new learning sessions to the configured newWordsPerDay", async () => {
