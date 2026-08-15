@@ -108,6 +108,59 @@ describe("format detection", () => {
     expect(result.entries[1]).toMatchObject({ word: "pattern", meaning: "模式" });
   });
 
+  // 设置里存着的格式只是上一次的判断，文件才是事实。存量说 column、文件却是
+  // 堆叠单元格时，整个单元格会被当成一个单词导进去（4 个词变 2 条乱码），
+  // 而且没有任何提示——这正是真实词库遇到的情况。
+  describe("when the stored format contradicts the file", () => {
+    // 照抄真实词库的样子：Markdown 标题、空表头、堆叠单元格、末行留空
+    const STACKED = `# English Vocabulary
+
+|                       |                            |                           |
+| :-------------------- | :------------------------- | :------------------------ |
+| study<br>学习<br>ˈstʌdi | practice<br>练习<br>ˈpræktɪs | improve<br>改进<br>ɪmˈpruːv |
+| learn<br>学习<br>lɜːrn  |                            |                           |
+`;
+    const staleColumnFormat = {
+      layout: "column" as const,
+      separator: "<br>",
+      fieldOrder: ["word", "meaning", "phonetic"] as const,
+      columns: { word: 1, meaning: 3, phonetic: 2 },
+    };
+
+    it("follows the file instead of the stale format", () => {
+      const result = parseVocabularyMarkdown("/vault/words.md", 1, STACKED, {
+        ...staleColumnFormat,
+        fieldOrder: [...staleColumnFormat.fieldOrder],
+      });
+
+      expect(result.entries.map((entry) => entry.word)).toEqual([
+        "study",
+        "practice",
+        "improve",
+        "learn",
+      ]);
+      expect(result.entries[0]).toMatchObject({ meaning: "学习", phonetic: "ˈstʌdi" });
+    });
+
+    it("says so instead of silently changing the format underfoot", () => {
+      const result = parseVocabularyMarkdown("/vault/words.md", 1, STACKED, {
+        ...staleColumnFormat,
+        fieldOrder: [...staleColumnFormat.fieldOrder],
+      });
+      expect(result.issues.some((issue) => /格式/.test(issue.message))).toBe(true);
+    });
+
+    it("leaves a genuine column table alone", () => {
+      const result = parseVocabularyMarkdown("/vault/words.md", 1, COLUMN_TABLE, {
+        ...staleColumnFormat,
+        fieldOrder: [...staleColumnFormat.fieldOrder],
+        columns: { word: 1, meaning: 2, phonetic: 3 },
+      });
+      expect(result.entries.map((entry) => entry.word)).toEqual(["journey", "pattern"]);
+      expect(result.issues).toEqual([]);
+    });
+  });
+
   it("honors a custom separator", () => {
     const result = parseVocabularyMarkdown("/vault/words.md", 1, "| alpha / 甲 / /a/ |", {
       layout: "cell",

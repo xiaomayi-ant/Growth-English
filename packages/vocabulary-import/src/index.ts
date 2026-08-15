@@ -160,16 +160,40 @@ function entryId(fileIndex: number, rowIndex: number, columnIndex: number): stri
   return `f${String(fileIndex).padStart(3, "0")}-r${String(rowIndex).padStart(3, "0")}-c${String(columnIndex).padStart(2, "0")}`;
 }
 
+/**
+ * 存量格式说「一词一行」，文件里却全是堆叠单元格——这时配置是过时的。
+ * 照着它解析会把整个 `study<br>学习<br>ˈstʌdi` 当成一个单词导进去，而且
+ * column 分支没有任何自检，用户看到的就是一堆乱码词条。
+ */
+function contradictsContent(content: string, format: VocabFormat): boolean {
+  if (format.layout !== "column") return false;
+  return content
+    .split(/\r?\n/)
+    .filter((line) => line.trim().startsWith("|"))
+    .some((line) => splitTableCells(line).some((cell) => BREAK_PATTERN.test(cell)));
+}
+
 export function parseVocabularyMarkdown(
   sourcePath: string,
   fileIndex: number,
   content: string,
   formatInput?: VocabFormatInput,
 ): ParsedVocabulary {
-  const format = normalizeFormat(formatInput);
+  const requested = normalizeFormat(formatInput);
   const entries: SourceEntry[] = [];
   const issues: ImportIssue[] = [];
   let rowIndex = 0;
+
+  // 配置只是上一次的判断，文件才是事实
+  const misread = contradictsContent(content, requested);
+  const format = misread ? detectFormat(content) : requested;
+  if (misread) {
+    issues.push({
+      sourcePath,
+      lineNumber: 1,
+      message: `设置里保存的词库格式（${requested.layout}）与这个文件对不上，已按文件实际的 ${format.layout} 格式导入`,
+    });
+  }
 
   for (const [lineOffset, line] of content.split(/\r?\n/).entries()) {
     if (!line.trim().startsWith("|")) continue;
