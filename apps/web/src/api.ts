@@ -1,4 +1,5 @@
 import type {
+  EditableSettings,
   ImportIssue,
   ImportSummary,
   OnboardingState,
@@ -67,6 +68,12 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   health: () => request<HealthResponse>("/api/health"),
+  getSettings: () => request<EditableSettings>("/api/settings"),
+  saveSettings: (settings: Partial<EditableSettings>) =>
+    request<{ success: boolean }>("/api/settings", {
+      method: "PUT",
+      body: JSON.stringify(settings),
+    }),
   onboarding: () => request<OnboardingState>("/api/onboarding"),
   setupVault: (vaultPath?: string, withSample = true) =>
     request<{ success: boolean; message: string; vocabDir: string }>(

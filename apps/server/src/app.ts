@@ -5,6 +5,9 @@ import {
   type AppConfig,
   createDefaultVaultStructure,
   detectOnboardingState,
+  type EditableSettings,
+  editableSettingsSchema,
+  ensureVaultDirectories,
   markOnboardingComplete,
   obsidianVaultLink,
   settingsPathForDatabasePath,
@@ -48,6 +51,11 @@ function webDistPath(): string {
   }
   const directory = path.dirname(fileURLToPath(import.meta.url));
   return path.resolve(directory, "../../web/dist");
+}
+
+// 用户在输入框里写 ~/… 是很自然的事，但它只是 shell 的约定，Node 不认
+function expandHome(targetPath: string): string {
+  return targetPath.replace(/^~/, process.env.HOME || process.env.USERPROFILE || "");
 }
 
 async function exists(targetPath: string): Promise<boolean> {
@@ -115,13 +123,8 @@ export async function buildApp(
   const database = await EnPetDatabase.open(config.databasePath);
   app.enPetDatabase = database;
   const taskScheduler = new TaskScheduler(config);
-  const studyService = new StudyService(
-    database,
-    generator,
-    evaluator,
-    config.newWordsPerDay,
-    config.reviewLimit,
-  );
+  // config 本身就是活的上限来源：设置页改完就地更新它，下一次会话立刻按新值走
+  const studyService = new StudyService(database, generator, evaluator, config);
 
   await app.register(cors, {
     origin: (origin, callback) => {
@@ -166,6 +169,45 @@ export async function buildApp(
     obsidianLink: obsidianVaultLink(config.vocabDir),
   }));
 
+  app.get("/api/settings", async () => ({
+    vocabDir: config.vocabDir,
+    vocabFilePrefix: config.vocabFilePrefix,
+    vocabFormat: config.vocabFormat,
+    newWordsPerDay: config.newWordsPerDay,
+    reviewLimit: config.reviewLimit,
+    reminderTime: config.reminderTime,
+  }));
+
+  app.put("/api/settings", async (request) => {
+    // 校验先于落盘：非法值直接 400，settings.json 不会被写坏
+    const parsed = editableSettingsSchema.partial().parse(request.body ?? {});
+
+    // exactOptionalPropertyTypes 下 Partial<T> 不接受显式 undefined，先滤掉
+    const patch: Partial<EditableSettings> = {};
+    for (const [key, value] of Object.entries(parsed)) {
+      if (value !== undefined) {
+        (patch as Record<string, unknown>)[key] = value;
+      }
+    }
+    if (patch.vocabDir) {
+      patch.vocabDir = expandHome(patch.vocabDir);
+    }
+
+    await writeSettingsFile(settingsPathForDatabasePath(config.databasePath), patch);
+
+    // 就地更新，运行中的服务立刻按新配置工作，不需要重启
+    Object.assign(config, patch);
+    if (patch.vocabDir) {
+      // 报告和复习快照住在 vault 里，词库搬家时必须跟着搬
+      config.reportsDir = path.join(patch.vocabDir, "study", "reports");
+      config.reviewQueuePath = path.join(patch.vocabDir, "study", "review-queue.md");
+      // 只在词库搬家时建目录：没动过位置就不该凭空造出一个目录来
+      await ensureVaultDirectories(config);
+    }
+
+    return { success: true };
+  });
+
   app.get("/api/onboarding", async () => {
     return detectOnboardingState(config);
   });
@@ -177,11 +219,7 @@ export async function buildApp(
     const vaultPath = body.vaultPath || config.vocabDir;
 
     try {
-      // 展开用户提供的路径
-      const expandedPath = vaultPath.replace(
-        /^~/,
-        process.env.HOME || process.env.USERPROFILE || "",
-      );
+      const expandedPath = expandHome(vaultPath);
       await createDefaultVaultStructure(
         { ...config, vocabDir: expandedPath },
         body.withSample ?? true,

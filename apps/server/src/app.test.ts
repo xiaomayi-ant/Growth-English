@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import {
@@ -147,6 +147,117 @@ describe("API", () => {
       await scoped.close();
       await rm(directory, { recursive: true, force: true });
     }
+  });
+
+  // 设置页此前只是个壳：读的是硬编码默认值，保存则是一个假的 setTimeout。
+  // 这组测试钉住「存得下、读得回、当场生效」三件事。
+  describe("settings", () => {
+    let directory: string;
+    let scoped: EnPetApp;
+
+    beforeEach(async () => {
+      directory = await mkdtemp(path.join(tmpdir(), "enpet-settings-"));
+      scoped = await buildApp(
+        { ...baseConfig, databasePath: path.join(directory, "enpet.sqlite3") },
+        new TestGenerator(),
+      );
+    });
+
+    afterEach(async () => {
+      await scoped.close();
+      await rm(directory, { recursive: true, force: true });
+    });
+
+    it("returns the editable settings currently in effect", async () => {
+      const response = await scoped.inject({ method: "GET", url: "/api/settings" });
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toMatchObject({
+        vocabDir: baseConfig.vocabDir,
+        vocabFilePrefix: baseConfig.vocabFilePrefix,
+        newWordsPerDay: 6,
+        reviewLimit: 30,
+        reminderTime: "09:00",
+      });
+    });
+
+    it("persists an update to settings.json and reads it back", async () => {
+      const response = await scoped.inject({
+        method: "PUT",
+        url: "/api/settings",
+        payload: { newWordsPerDay: 3, reminderTime: "21:30" },
+      });
+      expect(response.statusCode).toBe(200);
+
+      const onDisk = JSON.parse(await readFile(path.join(directory, "settings.json"), "utf8"));
+      expect(onDisk).toMatchObject({ newWordsPerDay: 3, reminderTime: "21:30" });
+
+      const reread = await scoped.inject({ method: "GET", url: "/api/settings" });
+      expect(reread.json()).toMatchObject({ newWordsPerDay: 3, reminderTime: "21:30" });
+    });
+
+    it("leaves untouched fields alone instead of resetting them to defaults", async () => {
+      await scoped.inject({ method: "PUT", url: "/api/settings", payload: { reviewLimit: 50 } });
+      await scoped.inject({
+        method: "PUT",
+        url: "/api/settings",
+        payload: { reminderTime: "07:15" },
+      });
+
+      const settings = (await scoped.inject({ method: "GET", url: "/api/settings" })).json();
+      expect(settings.reviewLimit).toBe(50);
+      expect(settings.reminderTime).toBe("07:15");
+    });
+
+    it("rejects invalid values without writing anything", async () => {
+      const response = await scoped.inject({
+        method: "PUT",
+        url: "/api/settings",
+        payload: { reminderTime: "9点" },
+      });
+      expect(response.statusCode).toBe(400);
+      expect(existsSync(path.join(directory, "settings.json"))).toBe(false);
+    });
+
+    // 报告和复习快照是 vault 的一部分，词库搬家时它们必须一起搬，
+    // 否则数据被劈成两半：词库在新目录，报告还写在旧目录里
+    it("moves the derived vault paths along with the vocabulary directory", async () => {
+      const moved = path.join(directory, "moved-vault");
+      await scoped.inject({ method: "PUT", url: "/api/settings", payload: { vocabDir: moved } });
+
+      const settings = (await scoped.inject({ method: "GET", url: "/api/settings" })).json();
+      expect(settings.vocabDir).toBe(moved);
+
+      const health = (await scoped.inject({ method: "GET", url: "/api/health" })).json();
+      expect(health.vocabDir).toBe(moved);
+    });
+
+    // StudyService 拿的是构造时传入的数字，改配置对它不可见——这条钉住那个坑
+    it("applies a new daily limit to the very next session", async () => {
+      scoped.enPetDatabase.importEntries(
+        Array.from({ length: 6 }, (_, index) => ({
+          id: `f001-r001-c0${index + 1}`,
+          fileIndex: 1,
+          rowIndex: 1,
+          columnIndex: index + 1,
+          sourcePath: "/vault/english-words.md",
+          word: `word-${index + 1}`,
+          meaning: `meaning-${index + 1}`,
+          phonetic: "-",
+          sourceOrder: 100_000 + index,
+        })),
+        1,
+        [],
+      );
+
+      await scoped.inject({ method: "PUT", url: "/api/settings", payload: { newWordsPerDay: 2 } });
+
+      const session = await scoped.inject({
+        method: "POST",
+        url: "/api/sessions/new/today",
+        payload: { date: "2026-07-06" },
+      });
+      expect(session.json().session.items).toHaveLength(2);
+    });
   });
 
   it("returns 400 with a readable message when the vocabulary directory is missing", async () => {

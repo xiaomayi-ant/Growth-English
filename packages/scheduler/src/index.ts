@@ -15,13 +15,21 @@ function formatEvaluationFeedback(
   return `自动批改：${result.feedback} 建议：${ratingLabels[result.suggestedRating]}，得分：${result.score}/100`;
 }
 
+/**
+ * 每日上限在设置页可改，改完要当场生效。传数字就等于在构造时拍了张快照，
+ * 之后再改设置这里看不见，所以持有的是配置对象本身。
+ */
+export interface StudyLimits {
+  readonly newWordsPerDay: number;
+  readonly reviewLimit: number;
+}
+
 export class StudyService {
   constructor(
     private readonly database: EnPetDatabase,
     private readonly contentGenerator: ContentGenerator,
     private readonly answerEvaluator: AnswerEvaluator,
-    private readonly newWordsPerDay: number,
-    private readonly reviewLimit: number,
+    private readonly limits: StudyLimits,
   ) {}
 
   async createNewLearningSession(date: string): Promise<StudySession | null> {
@@ -32,12 +40,12 @@ export class StudyService {
     if (fileIndex === null) return null;
     const candidates = this.database.getUnlearnedEntries(fileIndex);
     if (candidates.length === 0) return null;
-    const scenario = await this.contentGenerator.generateScenario(candidates, this.newWordsPerDay);
+    const scenario = await this.contentGenerator.generateScenario(candidates, this.limits.newWordsPerDay);
     const byId = new Map(candidates.map((entry) => [entry.id, entry]));
     const selected = [...new Set(scenario.selectedEntryIds)]
       .map((id) => byId.get(id))
       .filter((entry) => entry !== undefined)
-      .slice(0, this.newWordsPerDay);
+      .slice(0, this.limits.newWordsPerDay);
     if (selected.length === 0) {
       throw new Error("Content generator did not select any valid source entries");
     }
@@ -49,7 +57,7 @@ export class StudyService {
 
   createReviewSession(date: string): StudySession | null {
     if (isWeekend(date)) return null;
-    return this.database.createReviewSession(date, this.reviewLimit);
+    return this.database.createReviewSession(date, this.limits.reviewLimit);
   }
 
   async submitItem(

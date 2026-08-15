@@ -349,6 +349,8 @@ export default function App() {
   const [importing, setImporting] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  // 每日新词数在设置页可改，空状态的文案必须跟着走，不能写死
+  const [newWordsPerDay, setNewWordsPerDay] = useState(6);
   const [notice, setNotice] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState(false);
 
@@ -356,16 +358,25 @@ export default function App() {
     setLoading(true);
     setError(null);
     try {
-      const [nextHealth, nextOnboarding, nextNew, nextReview, nextQueue, nextHistory] =
-        await Promise.all([
-          api.health(),
-          api.onboarding().catch(() => ({ step: "welcome" as const, hasExistingData: false })),
-          api.getNewSession(),
-          api.getReviewSession(),
-          api.getReviewQueue(),
-          api.history(),
-        ]);
+      const [
+        nextHealth,
+        nextSettings,
+        nextOnboarding,
+        nextNew,
+        nextReview,
+        nextQueue,
+        nextHistory,
+      ] = await Promise.all([
+        api.health(),
+        api.getSettings(),
+        api.onboarding().catch(() => ({ step: "welcome" as const, hasExistingData: false })),
+        api.getNewSession(),
+        api.getReviewSession(),
+        api.getReviewQueue(),
+        api.history(),
+      ]);
       setHealth(nextHealth);
+      setNewWordsPerDay(nextSettings.newWordsPerDay);
       // 只有引导没走完才拦路；走完的用户直接进主界面，需要时从侧栏重新进入
       setShowOnboarding(nextOnboarding.step !== "complete");
       setNewSession(nextNew.session);
@@ -407,7 +418,13 @@ export default function App() {
           }}
         />
       ) : showSettings ? (
-        <Settings onClose={() => setShowSettings(false)} />
+        <Settings
+          onClose={() => {
+            setShowSettings(false);
+            // 设置可能改了词库目录或每日上限，回主界面前重新取一遍
+            void refresh();
+          }}
+        />
       ) : (
         <div className="app-shell">
           <aside className="sidebar">
@@ -561,7 +578,7 @@ export default function App() {
                   loading={loading}
                   actionLabel="创建今日新词任务"
                   emptyTitle="今日任务尚未创建"
-                  emptyDetail="从当前文档选择约 6 个未学词。"
+                  emptyDetail={`从当前文档选择约 ${newWordsPerDay} 个未学词。`}
                   onCreate={async () => {
                     const response = await api.createNewSession();
                     setNewSession(response.session);

@@ -1,5 +1,5 @@
 import { CheckCircle2, Database, FolderOpen, Save, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "./api";
 
 interface Settings {
@@ -25,20 +25,23 @@ export function Settings({ onClose }: SettingsProps) {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
-  useState(() => {
-    // 加载当前设置
-    api.health()
-      .then(() => {
+  useEffect(() => {
+    api
+      .getSettings()
+      .then((current) => {
         setSettings({
-          vocabDir: "",
-          newWordsPerDay: 6,
-          reviewLimit: 30,
-          reminderTime: "09:00",
+          vocabDir: current.vocabDir,
+          newWordsPerDay: current.newWordsPerDay,
+          reviewLimit: current.reviewLimit,
+          reminderTime: current.reminderTime,
         });
         setLoading(false);
       })
-      .catch(() => setLoading(false));
-  });
+      .catch((cause) => {
+        setError(cause instanceof Error ? cause.message : "读取设置失败");
+        setLoading(false);
+      });
+  }, []);
 
   const handleSave = async () => {
     setSaving(true);
@@ -46,12 +49,11 @@ export function Settings({ onClose }: SettingsProps) {
     setSuccess(false);
 
     try {
-      // 这里需要实现设置保存的API调用
-      await new Promise((resolve) => setTimeout(resolve, 1000)); // 模拟API调用
+      await api.saveSettings(settings);
       setSuccess(true);
       setTimeout(() => onClose(), 1500);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "保存设置失败");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "保存设置失败");
     } finally {
       setSaving(false);
     }
@@ -103,7 +105,7 @@ export function Settings({ onClose }: SettingsProps) {
               <input
                 type="text"
                 value={settings.vocabDir}
-                readOnly
+                onChange={(e) => setSettings({ ...settings, vocabDir: e.target.value })}
                 placeholder="~/Library/Application Support/EnPet/vault"
               />
             </div>
@@ -121,7 +123,9 @@ export function Settings({ onClose }: SettingsProps) {
                 min="1"
                 max="20"
                 value={settings.newWordsPerDay}
-                onChange={(e) => setSettings({ ...settings, newWordsPerDay: Number(e.target.value) })}
+                onChange={(e) =>
+                  setSettings({ ...settings, newWordsPerDay: Number(e.target.value) })
+                }
               />
             </div>
 
@@ -155,16 +159,9 @@ export function Settings({ onClose }: SettingsProps) {
           <button type="button" className="secondary-button" onClick={onClose}>
             取消
           </button>
-          <button
-            type="button"
-            className="primary-button"
-            onClick={handleSave}
-            disabled={saving}
-          >
+          <button type="button" className="primary-button" onClick={handleSave} disabled={saving}>
             {saving ? (
-              <>
-                <span>保存中...</span>
-              </>
+              <span>保存中...</span>
             ) : (
               <>
                 <Save aria-hidden="true" />
