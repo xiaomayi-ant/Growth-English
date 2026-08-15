@@ -39,11 +39,24 @@ class TestGenerator implements ContentGenerator {
   }
 }
 
+/**
+ * 测试必须自带评测器。不传的话 buildApp 会去探测本机的 codex CLI，装了 codex 的
+ * 机器上每次评分都真的调用它，一轮 6 个词远超默认超时——而 CI 上没装 codex，
+ * 走的是确定性实现，于是这条测试「本地红、CI 绿」，谁也不会去修。
+ * 测试用哪个实现应该由测试自己决定，不能交给机器环境。
+ */
+function buildTestApp(
+  config: AppConfig,
+  generator: ContentGenerator = new TestGenerator(),
+): Promise<EnPetApp> {
+  return buildApp(config, generator, new DeterministicAnswerEvaluator());
+}
+
 describe("API", () => {
   let app: EnPetApp;
 
   beforeEach(async () => {
-    app = await buildApp({ ...baseConfig }, new TestGenerator());
+    app = await buildTestApp({ ...baseConfig }, new TestGenerator());
     app.enPetDatabase.importEntries(
       Array.from({ length: 6 }, (_, index) => ({
         id: `f001-r001-c0${index + 1}`,
@@ -66,7 +79,7 @@ describe("API", () => {
   // 目录存在但还没有词库文件是首次使用的正常状态，不能当成失败
   it("reports an empty import instead of failing when the directory has no vocabulary files", async () => {
     const directory = await mkdtemp(path.join(tmpdir(), "enpet-empty-vocab-"));
-    const empty = await buildApp({ ...baseConfig, vocabDir: directory }, new TestGenerator());
+    const empty = await buildTestApp({ ...baseConfig, vocabDir: directory }, new TestGenerator());
     try {
       const response = await empty.inject({ method: "POST", url: "/api/import" });
       expect(response.statusCode).toBe(200);
@@ -85,7 +98,7 @@ describe("API", () => {
     const directory = await mkdtemp(path.join(tmpdir(), "enpet-sample-"));
     const vocabDir = path.join(directory, "vault");
     const { vocabFormat: _ignored, ...withoutFormat } = baseConfig;
-    const scoped = await buildApp(
+    const scoped = await buildTestApp(
       { ...withoutFormat, vocabDir, databasePath: path.join(directory, "enpet.sqlite3") },
       new TestGenerator(),
     );
@@ -111,7 +124,7 @@ describe("API", () => {
   it("makes the vocabulary directory an Obsidian vault", async () => {
     const directory = await mkdtemp(path.join(tmpdir(), "enpet-vault-"));
     const vocabDir = path.join(directory, "vault");
-    const scoped = await buildApp(
+    const scoped = await buildTestApp(
       { ...baseConfig, vocabDir, databasePath: path.join(directory, "enpet.sqlite3") },
       new TestGenerator(),
     );
@@ -135,7 +148,7 @@ describe("API", () => {
   it("writes the onboarding marker so the wizard stops replaying", async () => {
     const directory = await mkdtemp(path.join(tmpdir(), "enpet-onboarding-"));
     const databasePath = path.join(directory, "enpet.sqlite3");
-    const scoped = await buildApp({ ...baseConfig, databasePath }, new TestGenerator());
+    const scoped = await buildTestApp({ ...baseConfig, databasePath }, new TestGenerator());
     try {
       expect((await scoped.inject({ method: "GET", url: "/api/onboarding" })).json().step).not.toBe(
         "complete",
@@ -164,7 +177,7 @@ describe("API", () => {
 
     it("reports an empty vocabulary as its own reason", async () => {
       const directory = await mkdtemp(path.join(tmpdir(), "enpet-no-vocab-"));
-      const scoped = await buildApp(
+      const scoped = await buildTestApp(
         { ...baseConfig, databasePath: path.join(directory, "enpet.sqlite3") },
         new TestGenerator(),
       );
@@ -185,11 +198,10 @@ describe("API", () => {
     // 所以这里必须真的把一整轮走完
     it("reports a finished vocabulary as its own reason", async () => {
       const directory = await mkdtemp(path.join(tmpdir(), "enpet-all-learned-"));
-      const scoped = await buildApp(
-        { ...baseConfig, databasePath: path.join(directory, "enpet.sqlite3") },
-        new TestGenerator(),
-        new DeterministicAnswerEvaluator(),
-      );
+      const scoped = await buildTestApp({
+        ...baseConfig,
+        databasePath: path.join(directory, "enpet.sqlite3"),
+      });
       try {
         scoped.enPetDatabase.importEntries(
           Array.from({ length: 6 }, (_, index) => ({
@@ -261,7 +273,7 @@ describe("API", () => {
 
     beforeEach(async () => {
       directory = await mkdtemp(path.join(tmpdir(), "enpet-sample-vault-"));
-      scoped = await buildApp(
+      scoped = await buildTestApp(
         {
           ...baseConfig,
           vocabDir: path.join(directory, "vault"),
@@ -309,7 +321,7 @@ describe("API", () => {
 
     beforeEach(async () => {
       directory = await mkdtemp(path.join(tmpdir(), "enpet-settings-"));
-      scoped = await buildApp(
+      scoped = await buildTestApp(
         { ...baseConfig, databasePath: path.join(directory, "enpet.sqlite3") },
         new TestGenerator(),
       );
@@ -446,7 +458,7 @@ describe("API", () => {
   });
 
   it("limits new learning sessions to the configured newWordsPerDay", async () => {
-    const limited = await buildApp({ ...baseConfig, newWordsPerDay: 3 }, new TestGenerator());
+    const limited = await buildTestApp({ ...baseConfig, newWordsPerDay: 3 }, new TestGenerator());
     limited.enPetDatabase.importEntries(
       Array.from({ length: 6 }, (_, index) => ({
         id: `f001-r001-c0${index + 1}`,
