@@ -16,6 +16,8 @@
     "build:desktop": "pnpm --filter @enpet/web build && pnpm --filter @enpet/desktop build",
     "dev:desktop": "pnpm --filter @enpet/web build && pnpm --filter @enpet/desktop dev",
     "release": "pnpm build:desktop && pnpm --filter @enpet/desktop exec electron-builder --mac dmg --arm64 --x64 --publish never",
+    "release:local": "pnpm build:desktop && pnpm --filter @enpet/desktop exec electron-builder --mac dmg --arm64 --publish never",
+    "reset:local": "bash scripts/reset-local-data.sh",
     "typecheck": "pnpm -r typecheck",
     "test": "vitest run",
     "test:watch": "vitest",

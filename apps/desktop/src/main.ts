@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { copyFile, readFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import net from "node:net";
 import path from "node:path";
@@ -15,7 +15,7 @@ interface ServerBundle {
   buildApp: (config: AppConfig) => Promise<EnPetServer>;
   loadConfig: (env: NodeJS.ProcessEnv) => AppConfig;
   ensureVaultDirectories: (config: AppConfig) => Promise<void>;
-  migrateLegacyDataDir: () => Promise<void>;
+  migrateLegacyDataDir: (env?: NodeJS.ProcessEnv) => Promise<void>;
   readDataDirPointer: (pointerDir: string) => string | null;
   databasePathForDataDir: (dataDir: string) => string;
 }
@@ -103,19 +103,30 @@ async function startServer(): Promise<number> {
     readDataDirPointer,
     databasePathForDataDir,
   } = loadServerBundle();
-  // 改名前的 "En Play" 数据目录必须在读取配置和设置文件之前搬过来
-  await migrateLegacyDataDir();
+  // ENPET_DATA_DIR 把整个数据目录挪到别处，用来在不碰真实数据的前提下重跑引导。
+  // 它生效时两处迁移都必须跳过：任何一处把旧数据搬进隔离目录，那个目录就变成了
+  // 「老用户」，引导又不会出现，隔离等于白做。
+  const isolatedDataDir = process.env.ENPET_DATA_DIR;
 
-  const userDataDir = app.getPath("userData");
+  // 改名前的 "En Play" 数据目录必须在读取配置和设置文件之前搬过来
+  await migrateLegacyDataDir(process.env);
+
+  const userDataDir = isolatedDataDir ? path.resolve(isolatedDataDir) : app.getPath("userData");
   const settingsEnv = await loadSettingsEnv(userDataDir);
-  const legacyDatabasePath = loadConfig({}).databasePath;
 
   // 用户在引导里选过数据目录就用它，否则用推荐目录（= userData）
   const pointedDataDir = readDataDirPointer(userDataDir);
   const databasePath = pointedDataDir
     ? databasePathForDataDir(pointedDataDir)
     : path.join(userDataDir, "enpet.sqlite3");
-  await migrateLegacyDatabase(databasePath, legacyDatabasePath);
+
+  if (!isolatedDataDir) {
+    // loadConfig({}) 刻意不带环境变量：要的是改名前那个固定的默认位置
+    await migrateLegacyDatabase(databasePath, loadConfig({}).databasePath);
+  }
+
+  // Electron 会自己建 userData，隔离目录则是全新的，数据库落地前得先有父目录
+  await mkdir(path.dirname(databasePath), { recursive: true });
 
   // databasePath 要先定下来，loadConfig 才知道去哪个目录读 settings.json
   const base = loadConfig({ ...process.env, ENPET_DATABASE_PATH: databasePath, ...settingsEnv });

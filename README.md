@@ -67,6 +67,7 @@ GitHub Actions 自动构建两个架构的 dmg 并上传到 Releases 草稿，�
 
 | 变量 | 默认值 | 用途 |
 | --- | --- | --- |
+| `ENPET_DATA_DIR` | `~/Library/Application Support/EnPet` | 数据目录，下面所有路径的默认值都从它派生 |
 | `ENPET_HOST` | `127.0.0.1` | 本地 API 监听地址 |
 | `ENPET_PORT` | `4173` | 浏览器模式 API 端口 |
 | `ENPET_TIMEZONE` | `Asia/Shanghai` | 日期与工作日计算 |
@@ -83,6 +84,20 @@ GitHub Actions 自动构建两个架构的 dmg 并上传到 Releases 草稿，�
 ```bash
 set -a && source .env && set +a
 ```
+
+### 测试引导流程
+
+macOS 上卸载 `.app` 不会删除 `~/Library/Application Support/` 下的数据，所以重装安装包并不会重新触发引导——这是所有 Mac 应用的行为，为的是升级不丢数据。想看引导，把数据目录整个挪到临时位置即可：
+
+```bash
+ENPET_DATA_DIR=/tmp/enpet-onboarding open -a EnPet
+```
+
+`ENPET_DATA_DIR` 生效时会跳过 En Play 迁移和旧数据库搬运，否则隔离目录会被填成「老用户」，引导照样不出现。真实数据目录全程不受影响。
+
+注意两点：Electron 自身的浏览器缓存仍写在真实的 userData 下（不影响引导判定）；单实例锁也在那里，所以隔离实例和正常实例不能同时运行。
+
+要彻底回到「从未安装过」的状态（会删掉真实数据），用 `pnpm reset:local`，先看预演再加 `--yes`。
 
 ### 从 En Play 迁移
 

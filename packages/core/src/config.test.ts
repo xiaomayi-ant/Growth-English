@@ -1,7 +1,7 @@
+import { existsSync } from "node:fs";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { mkdir, mkdtemp, rm, readFile, writeFile } from "node:fs/promises";
-import { existsSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   defaultEditableSettings,
@@ -76,6 +76,34 @@ describe("loadConfig", () => {
     });
     expect(config.databasePath).toBe("/new/enpet.sqlite3");
   });
+
+  // 引导流程只能靠「数据目录里什么都没有」来触发，所以测试要能把整个数据目录
+  // 挪到临时位置。只覆盖 databasePath 不够：词库和报告会留在真实目录里被写脏。
+  it("derives every path from ENPET_DATA_DIR when it is set", () => {
+    const config = loadConfig({ ENPET_DATA_DIR: "/tmp/enpet-isolated" });
+    expect(config.databasePath).toBe("/tmp/enpet-isolated/enpet.sqlite3");
+    expect(config.vocabDir).toBe("/tmp/enpet-isolated/vault");
+    expect(config.reportsDir).toBe("/tmp/enpet-isolated/vault/study/reports");
+    expect(config.reviewQueuePath).toBe("/tmp/enpet-isolated/vault/study/review-queue.md");
+  });
+
+  it("resolves a relative ENPET_DATA_DIR to an absolute path", () => {
+    const config = loadConfig({ ENPET_DATA_DIR: "./enpet-relative" });
+    expect(config.databasePath).toBe(path.resolve("./enpet-relative/enpet.sqlite3"));
+  });
+
+  // 更具体的覆盖仍然赢，否则既有的 ENPET_VOCAB_DIR 用法会被这个新变量夺走
+  it("lets the more specific overrides win over ENPET_DATA_DIR", () => {
+    const config = loadConfig({
+      ENPET_DATA_DIR: "/tmp/enpet-isolated",
+      ENPET_VOCAB_DIR: "/custom/vocab",
+      ENPET_DATABASE_PATH: "/custom/enpet.sqlite3",
+    });
+    expect(config.vocabDir).toBe("/custom/vocab");
+    expect(config.databasePath).toBe("/custom/enpet.sqlite3");
+    // 未被单独指定的路径继续跟随 ENPET_DATA_DIR
+    expect(config.reportsDir).toBe("/tmp/enpet-isolated/vault/study/reports");
+  });
 });
 
 describe("migrateLegacyDataDir", () => {
@@ -133,6 +161,19 @@ describe("migrateLegacyDataDir", () => {
     await migrateLegacyDataDir();
 
     expect(await readFile(path.join(dataDir, "enpet.sqlite3"), "utf8")).toBe("new");
+  });
+
+  // 迁移是给真实用户升级用的一次性动作。隔离出来的数据目录如果也被填上旧数据，
+  // 它就成了「老用户」，引导又不会出现，测试隔离等于白做。
+  it("skips migration entirely when the data dir is overridden", async () => {
+    const isolated = path.join(home, "isolated");
+    await mkdir(legacyDir, { recursive: true });
+    await writeFile(path.join(legacyDir, "en-play.sqlite3"), "old", "utf8");
+
+    await migrateLegacyDataDir({ ENPET_DATA_DIR: isolated });
+
+    expect(existsSync(path.join(isolated, "enpet.sqlite3"))).toBe(false);
+    expect(existsSync(dataDir)).toBe(false);
   });
 });
 

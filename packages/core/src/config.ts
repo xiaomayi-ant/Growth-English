@@ -77,8 +77,12 @@ function applicationSupportDir(): string {
   return path.join(os.homedir(), "Library", "Application Support");
 }
 
-function defaultDataDir(): string {
-  return path.join(applicationSupportDir(), APP_DIR_NAME);
+// 数据目录是所有其它路径的源头，整体可被 ENPET_DATA_DIR 覆盖。测试引导流程需要
+// 一个「什么都没有」的数据目录，而单独覆盖 databasePath 不够——词库和报告会留在
+// 真实目录里被写脏。
+function defaultDataDir(env: NodeJS.ProcessEnv = process.env): string {
+  const override = readEnv(env, "DATA_DIR");
+  return override ? path.resolve(override) : path.join(applicationSupportDir(), APP_DIR_NAME);
 }
 
 function legacyDataDir(): string {
@@ -87,8 +91,12 @@ function legacyDataDir(): string {
 
 // 改名前的数据目录一次性复制到 EnPet 目录，旧目录原样保留，便于回退到旧版本。
 // 必须在 loadConfig 之前调用；标记文件保证只搬一次。
-export async function migrateLegacyDataDir(): Promise<void> {
-  const dataDir = defaultDataDir();
+export async function migrateLegacyDataDir(env: NodeJS.ProcessEnv = process.env): Promise<void> {
+  // 迁移是真实用户升级时的一次性动作。数据目录被显式覆盖时那是个隔离环境，
+  // 把旧数据搬进去会让它看起来像老用户，引导就不出现了。
+  if (readEnv(env, "DATA_DIR")) return;
+
+  const dataDir = defaultDataDir(env);
   const legacyDir = legacyDataDir();
   if (!existsSync(legacyDir) || existsSync(path.join(dataDir, MIGRATION_MARKER))) return;
 
@@ -213,7 +221,7 @@ function readEnv(env: NodeJS.ProcessEnv, suffix: string): string | undefined {
 
 // 加载优先级：默认值 < 设置文件（databasePath 同目录的 settings.json）< 环境变量
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
-  const dataDir = defaultDataDir();
+  const dataDir = defaultDataDir(env);
   const vaultDir = path.join(dataDir, "vault");
   const databasePath = readEnv(env, "DATABASE_PATH") ?? path.join(dataDir, DATABASE_FILE);
   const saved = readSettingsFile(settingsPathForDatabasePath(databasePath));
