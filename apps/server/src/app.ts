@@ -134,7 +134,10 @@ export async function buildApp(
     },
   });
 
-  app.setErrorHandler((error, _request, reply) => {
+  app.setErrorHandler((error, request, reply) => {
+    // 500 对外只说一句 Internal server error，日志里必须留下真正的原因，
+    // 否则打包版出问题时手上什么线索都没有
+    request.log.error({ err: error }, "request failed");
     if (error instanceof VocabImportError) {
       reply.status(400).send({
         error: error.message,
