@@ -90,6 +90,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ format }),
     }),
+  createSampleVault: () => request<ImportSummary>("/api/vault/sample", { method: "POST" }),
   importVocabulary: (format?: Partial<VocabFormat>) =>
     request<ImportSummary>("/api/import", {
       method: "POST",

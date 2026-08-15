@@ -260,17 +260,11 @@ export async function buildApp(
     }
 
     try {
-      let result;
-      if (task.type === "new_learning") {
-        const session = await studyService.createNewLearningSession(
-          todayInTimeZone(config.timeZone),
-        );
-        result = { taskId, runAt: new Date().toISOString(), success: true, sessionId: session?.id };
-      } else {
-        const session = studyService.createReviewSession(todayInTimeZone(config.timeZone));
-        result = { taskId, runAt: new Date().toISOString(), success: true, sessionId: session?.id };
-      }
-      return result;
+      const session =
+        task.type === "new_learning"
+          ? await studyService.createNewLearningSession(todayInTimeZone(config.timeZone))
+          : studyService.createReviewSession(todayInTimeZone(config.timeZone));
+      return { taskId, runAt: new Date().toISOString(), success: true, sessionId: session?.id };
     } catch (error) {
       return {
         taskId,
@@ -326,21 +320,15 @@ export async function buildApp(
     return { success: true };
   });
 
-  app.post("/api/import", async (request) => {
-    const body = z
-      .object({ format: vocabFormatSchema.partial().optional() })
-      .parse(request.body || {});
-    // 导入时确认的格式要存下来，下次同步词库不用重新选
-    if (body.format) {
-      await writeSettingsFile(settingsPathForDatabasePath(config.databasePath), {
-        vocabFormat: normalizeFormat(body.format),
-      });
-      config.vocabFormat = normalizeFormat(body.format);
-    }
+  // /api/import 和「用示例词先试试」走的是同一段导入逻辑。
+  // detectFormat 用于后者：示例词库是我们自己写的一词一行表格，格式确定，
+  // 不能拿用户存量的 vocabFormat 去套——老用户存的可能是旧的 cell 堆叠格式，
+  // 用它解析会把 6 个词拆成 21 条垃圾。
+  async function importFromVault({ detectFormat = false } = {}) {
     const vocabulary = await loadVocabulary(
       config.vocabDir,
       config.vocabFilePrefix,
-      config.vocabFormat,
+      detectFormat ? undefined : config.vocabFormat,
     );
     // 没有词库文件时不写库，直接回报 0，让前端提示而不是当成失败
     if (vocabulary.files === 0) {
@@ -360,6 +348,27 @@ export async function buildApp(
       database.getReviewQueue(todayInTimeZone(config.timeZone)),
     );
     return summary;
+  }
+
+  // 空词库的用户点「用示例词先试试」：建词库文件再导入，一步到位。
+  // createDefaultVaultStructure 遇到已存在的词库文件会跳过，不会冲掉用户自己的词库。
+  app.post("/api/vault/sample", async () => {
+    await createDefaultVaultStructure(config, true);
+    return importFromVault({ detectFormat: true });
+  });
+
+  app.post("/api/import", async (request) => {
+    const body = z
+      .object({ format: vocabFormatSchema.partial().optional() })
+      .parse(request.body || {});
+    // 导入时确认的格式要存下来，下次同步词库不用重新选
+    if (body.format) {
+      await writeSettingsFile(settingsPathForDatabasePath(config.databasePath), {
+        vocabFormat: normalizeFormat(body.format),
+      });
+      config.vocabFormat = normalizeFormat(body.format);
+    }
+    return importFromVault();
   });
 
   app.post("/api/backup", async () => {

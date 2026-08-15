@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import {
@@ -147,6 +147,54 @@ describe("API", () => {
       await scoped.close();
       await rm(directory, { recursive: true, force: true });
     }
+  });
+
+  // 空词库时主界面给的是「用示例词先试试」一个按钮，它背后就是这个接口：
+  // 建词库文件再导入，一步到位，用户不需要先懂什么是 vault。
+  describe("sample vault", () => {
+    let directory: string;
+    let scoped: EnPetApp;
+
+    beforeEach(async () => {
+      directory = await mkdtemp(path.join(tmpdir(), "enpet-sample-vault-"));
+      scoped = await buildApp(
+        {
+          ...baseConfig,
+          vocabDir: path.join(directory, "vault"),
+          databasePath: path.join(directory, "enpet.sqlite3"),
+        },
+        new TestGenerator(),
+      );
+    });
+
+    afterEach(async () => {
+      await scoped.close();
+      await rm(directory, { recursive: true, force: true });
+    });
+
+    it("creates the sample vocabulary and imports it in one step", async () => {
+      const response = await scoped.inject({ method: "POST", url: "/api/vault/sample" });
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toMatchObject({ files: 1, inserted: 6, issues: [] });
+
+      expect(existsSync(path.join(directory, "vault", "english-words.md"))).toBe(true);
+      // 词库目录同时要是个能被 Obsidian 直接打开的 vault
+      expect(existsSync(path.join(directory, "vault", ".obsidian", "app.json"))).toBe(true);
+
+      const health = (await scoped.inject({ method: "GET", url: "/api/health" })).json();
+      expect(health.sourceEntries).toBe(6);
+    });
+
+    // 用户已经有词库时误点了这个按钮，不能把人家的文件冲掉
+    it("never overwrites an existing vocabulary file", async () => {
+      await scoped.inject({ method: "POST", url: "/api/vault/sample" });
+      const samplePath = path.join(directory, "vault", "english-words.md");
+      await writeFile(samplePath, "# 我自己的词库\n\n| 单词 | 音标 | 释义 |\n| :- | :- | :- |\n");
+
+      await scoped.inject({ method: "POST", url: "/api/vault/sample" });
+
+      expect(await readFile(samplePath, "utf8")).toContain("我自己的词库");
+    });
   });
 
   // 设置页此前只是个壳：读的是硬编码默认值，保存则是一个假的 setTimeout。

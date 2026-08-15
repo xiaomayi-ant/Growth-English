@@ -18,7 +18,6 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "./api";
 import { ImportPreview } from "./ImportPreview";
-import { Onboarding } from "./Onboarding";
 import { Settings } from "./Settings";
 
 type View = "learn" | "review" | "history";
@@ -43,6 +42,45 @@ function EmptyState({ title, detail }: { title: string; detail: string }) {
       <CheckCircle2 aria-hidden="true" />
       <h3>{title}</h3>
       <p>{detail}</p>
+    </div>
+  );
+}
+
+interface EmptyVaultProps {
+  vocabDir: string;
+  busy: boolean;
+  onImport: () => void;
+  onUseSample: () => void;
+}
+
+/**
+ * 空词库时主界面显示的入口。这里刻意不做成启动前的向导：所有选择都有合理默认值，
+ * 拦在门口只会让第一分钟变成一份表格，而且向导是全应用最少被走到的路径——
+ * 开发时天天见的是主界面，向导坏了没人发现。存储位置之类的配置在设置页里改。
+ */
+function EmptyVault({ vocabDir, busy, onImport, onUseSample }: EmptyVaultProps) {
+  return (
+    <div className="start-panel">
+      <div className="empty-state">
+        <Database aria-hidden="true" />
+        <h3>还没有词库</h3>
+        <p>把 Markdown 词库文件放进下面的目录再导入，或者先用几个示例词把流程跑一遍。</p>
+        {/* 路径可能很长，单独占一行，不跟正文挤在一起硬断 */}
+        <code className="vault-path">{vocabDir}</code>
+      </div>
+      <div className="empty-actions">
+        <button type="button" className="primary-button" disabled={busy} onClick={onImport}>
+          {busy ? (
+            <LoaderCircle className="spin" aria-hidden="true" />
+          ) : (
+            <Database aria-hidden="true" />
+          )}
+          导入我的词库
+        </button>
+        <button type="button" className="secondary-button" disabled={busy} onClick={onUseSample}>
+          <BookOpen aria-hidden="true" />用 6 个示例词先试试
+        </button>
+      </div>
     </div>
   );
 }
@@ -347,7 +385,6 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
-  const [showOnboarding, setShowOnboarding] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   // 每日新词数在设置页可改，空状态的文案必须跟着走，不能写死
   const [newWordsPerDay, setNewWordsPerDay] = useState(6);
@@ -358,27 +395,17 @@ export default function App() {
     setLoading(true);
     setError(null);
     try {
-      const [
-        nextHealth,
-        nextSettings,
-        nextOnboarding,
-        nextNew,
-        nextReview,
-        nextQueue,
-        nextHistory,
-      ] = await Promise.all([
-        api.health(),
-        api.getSettings(),
-        api.onboarding().catch(() => ({ step: "welcome" as const, hasExistingData: false })),
-        api.getNewSession(),
-        api.getReviewSession(),
-        api.getReviewQueue(),
-        api.history(),
-      ]);
+      const [nextHealth, nextSettings, nextNew, nextReview, nextQueue, nextHistory] =
+        await Promise.all([
+          api.health(),
+          api.getSettings(),
+          api.getNewSession(),
+          api.getReviewSession(),
+          api.getReviewQueue(),
+          api.history(),
+        ]);
       setHealth(nextHealth);
       setNewWordsPerDay(nextSettings.newWordsPerDay);
-      // 只有引导没走完才拦路；走完的用户直接进主界面，需要时从侧栏重新进入
-      setShowOnboarding(nextOnboarding.step !== "complete");
       setNewSession(nextNew.session);
       setReviewSession(nextReview.session);
       setQueue(nextQueue);
@@ -394,6 +421,39 @@ export default function App() {
     void refresh();
   }, [refresh]);
 
+  // 顶栏的「同步词库」和空状态的「导入我的词库」是同一个动作
+  const startImport = useCallback(async () => {
+    setImporting(true);
+    setError(null);
+    try {
+      // 先探一次：没有词库文件就直接提示，有的话进预览让用户确认
+      const preview = await api.previewImport();
+      if (preview.files === 0) {
+        setNotice(`${preview.vocabDir} 中还没有词库文件`);
+      } else {
+        setShowPreview(true);
+      }
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "解析词库失败");
+    } finally {
+      setImporting(false);
+    }
+  }, []);
+
+  const useSampleVocabulary = useCallback(async () => {
+    setImporting(true);
+    setError(null);
+    try {
+      const summary = await api.createSampleVault();
+      setNotice(`已导入 ${summary.inserted} 个示例词，可以直接开始学习`);
+      await refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "创建示例词库失败");
+    } finally {
+      setImporting(false);
+    }
+  }, [refresh]);
+
   const title = useMemo(
     () => ({ learn: "新词学习", review: "到期复习", history: "学习历史" })[view],
     [view],
@@ -401,14 +461,7 @@ export default function App() {
 
   return (
     <>
-      {showOnboarding ? (
-        <Onboarding
-          onComplete={() => {
-            setShowOnboarding(false);
-            void refresh();
-          }}
-        />
-      ) : showPreview ? (
+      {showPreview ? (
         <ImportPreview
           onCancel={() => setShowPreview(false)}
           onImported={(inserted, updated) => {
@@ -486,23 +539,7 @@ export default function App() {
                   type="button"
                   className="secondary-button"
                   disabled={importing}
-                  onClick={async () => {
-                    setImporting(true);
-                    setError(null);
-                    try {
-                      // 先探一次：没有词库文件就直接提示，有的话进预览让用户确认
-                      const preview = await api.previewImport();
-                      if (preview.files === 0) {
-                        setNotice(`${preview.vocabDir} 中还没有词库文件`);
-                      } else {
-                        setShowPreview(true);
-                      }
-                    } catch (cause) {
-                      setError(cause instanceof Error ? cause.message : "解析词库失败");
-                    } finally {
-                      setImporting(false);
-                    }
-                  }}
+                  onClick={startImport}
                 >
                   {importing ? (
                     <LoaderCircle className="spin" aria-hidden="true" />
@@ -554,25 +591,16 @@ export default function App() {
                 </button>
               </div>
             ) : null}
-            {health?.sourceEntries === 0 && !loading ? (
-              <div className="setup-banner">
-                <Database aria-hidden="true" />
-                <div>
-                  <strong>词库尚未导入</strong>
-                  <span>把词库文件放进词库目录后点「同步词库」，或重新运行引导。</span>
-                </div>
-                <button
-                  type="button"
-                  className="secondary-button"
-                  onClick={() => setShowOnboarding(true)}
-                >
-                  运行引导
-                </button>
-              </div>
-            ) : null}
-
             <div className="view-content">
-              {view === "learn" ? (
+              {/* 空词库时学习和复习都无从谈起，直接把入口摆在主位置 */}
+              {!loading && health?.sourceEntries === 0 && view !== "history" ? (
+                <EmptyVault
+                  vocabDir={health.vocabDir}
+                  busy={importing}
+                  onImport={() => void startImport()}
+                  onUseSample={() => void useSampleVocabulary()}
+                />
+              ) : view === "learn" ? (
                 <SessionView
                   session={newSession}
                   loading={loading}
